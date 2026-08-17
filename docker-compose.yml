@@ -1,0 +1,19 @@
+services:
+  glitchmap:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+    volumes:
+      # Volumen con nombre: sobrevive a `docker compose down`, a los rebuilds
+      # y a los reinicios. Solo se pierde con `docker volume rm`.
+      - glitchmap-data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  glitchmap-data:
