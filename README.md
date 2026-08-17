@@ -7,6 +7,11 @@ Es un mapa colaborativo con dos gestos y nada más: **escanear** lo que hay
 cerca tuyo y **registrar** un punto nuevo. Todo lo demás es un botón sobre esos
 dos.
 
+> En este repo viven **dos bots**. El otro es **[ODD](ODD.md)**: te dice dónde
+> hay bares con placa ODD, donde te invitan hasta USD 3 a cambio de una
+> reflexión escrita. Comparten la geometría y nada más — token propio, base
+> propia, proceso propio (`python odd_main.py`).
+
 ---
 
 ## Levantarlo
