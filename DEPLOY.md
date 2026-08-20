@@ -43,24 +43,18 @@ Si tenés un teléfono en un cajón, sirve perfecto: enchufado consume menos que
 un cargador y no depende de ninguna cuenta.
 
 1. Instalá **Termux** (desde F-Droid, no desde Play Store).
-2. Adentro de Termux:
+2. Abrí Termux y pegá **esta única línea**:
 
 ```bash
-pkg install python git -y
-git clone https://github.com/NOQUIEROO/Este-si.git
-cd Este-si
-pip install -r requirements.txt
-cp .env.example .env
-nano .env          # pegás el token y tu número
-termux-wake-lock   # para que Android no lo duerma
-python main.py
+curl -fsSL https://raw.githubusercontent.com/NOQUIEROO/Este-si/main/deploy/termux.sh | bash
 ```
 
-3. Instalá **Termux:Boot** para que arranque solo cuando prendés el teléfono.
+   Te pide el token de @BotFather y tu número de Telegram, y arranca el bot.
 
-Dejalo enchufado y conectado al wifi. Listo.
+3. Instalá también la app **Termux:Boot** (F-Droid) y listo: el bot arranca
+   solo cada vez que prendés el teléfono.
 
-*(Acá no sirve `install.sh`: Android no tiene systemd.)*
+Dejalo enchufado y conectado al wifi. No hace falta nada más.
 
 ---
 
