@@ -11,6 +11,8 @@ dos.
 
 ## Levantarlo
 
+> ¿No sabés dónde dejarlo corriendo, y gratis? → **[DEPLOY.md](DEPLOY.md)**
+
 ```bash
 cp .env.example .env      # pegá el token de @BotFather y tu user id
 docker compose up -d --build

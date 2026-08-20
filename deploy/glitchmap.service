@@ -1,0 +1,36 @@
+[Unit]
+Description=Red de Anomalias (bot de Telegram)
+Documentation=https://github.com/NOQUIEROO/Este-si
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=glitchmap
+Group=glitchmap
+WorkingDirectory=/opt/glitchmap
+EnvironmentFile=/opt/glitchmap/.env
+ExecStart=/opt/glitchmap/.venv/bin/python -u main.py
+
+# Si se cae por lo que sea, vuelve solo. Es lo que hace que no haya que
+# mirarlo nunca mas.
+Restart=always
+RestartSec=5
+
+# La base vive en /var/lib/glitchmap, que systemd crea y respeta entre
+# actualizaciones del codigo.
+StateDirectory=glitchmap
+Environment=DATA_DIR=/var/lib/glitchmap
+
+# Endurecimiento basico: el bot no necesita nada mas que su carpeta.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/var/lib/glitchmap
+
+[Install]
+WantedBy=multi-user.target
