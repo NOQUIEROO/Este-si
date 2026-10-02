@@ -15,5 +15,23 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # El segundo bot: misma imagen, otro comando, otro token, otra base.
+  # Se levanta solo con `docker compose up -d odd`.
+  odd:
+    build: .
+    command: ["python", "-u", "odd_main.py"]
+    restart: unless-stopped
+    env_file: .env.odd
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - odd-data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   glitchmap-data:
+  odd-data:
