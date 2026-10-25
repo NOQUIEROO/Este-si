@@ -260,7 +260,33 @@ function drawLcd(series) {
 // ---------- carga del aparato
 await waitEngine();
 const DB = window.DishBrain; DB.PARAMS.paddleHalf = 0.18;    // el largo de la paleta del diseño
-const gltf = await new GLTFLoader().loadAsync('pongbrain.gltf.json', (e) => { if (e.total) $('#loading').textContent = 'cargando el aparato… ' + Math.round(100 * e.loaded / e.total) + '%'; });
+// el modelo viene como glTF con los datos en base64; se arma un GLB en memoria (sin leer direcciones data:)
+async function loadModel(url) {
+  const res = await fetch(url);
+  const total = +res.headers.get('content-length') || 0;
+  const reader = res.body.getReader(); const chunks = []; let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read(); if (done) break;
+    chunks.push(value); got += value.length;
+    $('#loading').textContent = 'cargando el aparato… ' + (total ? Math.round(100 * got / total) + '%' : Math.round(got / 1e6) + ' MB');
+  }
+  const text = new TextDecoder().decode(await new Blob(chunks).arrayBuffer());
+  const j = JSON.parse(text);
+  const b64 = j.buffers[0].uri.split(',')[1]; delete j.buffers[0].uri;
+  const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const pad = (n) => (4 - (n % 4)) % 4;
+  let jsonBytes = new TextEncoder().encode(JSON.stringify(j));
+  const jp = pad(jsonBytes.length), bp = pad(bin.length);
+  const size = 12 + 8 + jsonBytes.length + jp + 8 + bin.length + bp;
+  const glb = new ArrayBuffer(size), dv = new DataView(glb), u8 = new Uint8Array(glb);
+  dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, size, true);
+  dv.setUint32(12, jsonBytes.length + jp, true); dv.setUint32(16, 0x4E4F534A, true);
+  u8.set(jsonBytes, 20); u8.fill(0x20, 20 + jsonBytes.length, 20 + jsonBytes.length + jp);
+  let o = 20 + jsonBytes.length + jp;
+  dv.setUint32(o, bin.length + bp, true); dv.setUint32(o + 4, 0x004E4942, true); u8.set(bin, o + 8);
+  return new GLTFLoader().parseAsync(glb, '');
+}
+const gltf = await loadModel('pongbrain.gltf.json');
 $('#loading').hidden = true;
 const root = gltf.scene; scene.add(root);
 const san = (n) => THREE.PropertyBinding.sanitizeNodeName(n);
