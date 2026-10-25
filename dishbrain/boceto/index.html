@@ -1,0 +1,2237 @@
+<meta charset="utf-8">
+<title>Boceto de la placa espejo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: cuaderno de laboratorio. Una columna, cada figura con su explicación debajo, y al final lo que falta decidir. */
+:root {
+  --bg: #f5f2f4; --surface: #ffffff; --ink: #1e1820; --muted: #675d6a; --line: #e2dae0;
+  --accent: #b0285e; --accent-soft: #f6dde7;
+  --pad: #2f6fd0;
+  --chip: #e9e3e8; --chip-side: #cfc5cd; --chip-side2: #ddd4db; --elec: #c4b9c2;
+  --soma: #3d8a62; --fil: #6f9c84;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141016; --surface: #1d181f; --ink: #f1ecf0; --muted: #ab9fac; --line: #342b36;
+    --accent: #e0517f; --accent-soft: #3a1b29; --pad: #5486e0;
+    --chip: #2a232c; --chip-side: #191419; --chip-side2: #221c23; --elec: #3e3540;
+    --soma: #5fc28d; --fil: #4f7d65;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141016; --surface: #1d181f; --ink: #f1ecf0; --muted: #ab9fac; --line: #342b36;
+  --accent: #e0517f; --accent-soft: #3a1b29; --pad: #5486e0;
+  --chip: #2a232c; --chip-side: #191419; --chip-side2: #221c23; --elec: #3e3540;
+  --soma: #5fc28d; --fil: #4f7d65;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; }
+.wrap {
+  max-width: 860px; margin: 0 auto; display: grid; gap: 30px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px;
+}
+h1, h2 { font-family: var(--f-display); margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(1.9rem, 4.5vw, 2.7rem); letter-spacing: -0.02em; line-height: 1.05; }
+h1 em { font-style: normal; color: var(--accent); }
+h2 { font-size: 1.25rem; }
+p { margin: 0; }
+.eyebrow { font: 600 0.72rem var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lede { color: var(--muted); max-width: 64ch; }
+header { display: grid; gap: 10px; }
+section.fig { display: grid; gap: 12px; }
+.fig-head { display: flex; gap: 12px; align-items: baseline; }
+.step { font: 600 0.8rem var(--f-mono); color: var(--accent); }
+figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 10px; }
+.svg-scroll { overflow-x: auto; }
+figure svg { display: block; width: 100%; min-width: 560px; height: auto; color: var(--ink); }
+figcaption { color: var(--muted); font-size: 0.88rem; max-width: 70ch; }
+.body { display: grid; gap: 8px; max-width: 68ch; }
+.body p { color: var(--muted); }
+.body strong { color: var(--ink); }
+.flag { border-left: 3px solid var(--accent); padding: 8px 12px; background: var(--accent-soft); border-radius: 0 6px 6px 0; font-size: 0.9rem; }
+.decide { display: grid; gap: 10px; }
+.decide ol { margin: 0; padding-left: 1.3em; display: grid; gap: 8px; color: var(--muted); }
+.decide li strong { color: var(--ink); }
+
+/* SVG */
+.chip { fill: var(--chip); stroke: var(--line); }
+.chip-flat { fill: var(--chip); stroke: var(--line); }
+.chip-side { fill: var(--chip-side); }
+.chip-side2 { fill: var(--chip-side2); }
+.elec { fill: var(--elec); }
+.zone-mirror { fill: var(--accent); fill-opacity: 0.1; stroke: var(--accent); stroke-dasharray: 4 3; stroke-width: 1.2; }
+.zone-motor { fill: var(--pad); fill-opacity: 0.08; stroke: var(--pad); stroke-dasharray: 4 3; stroke-width: 1.2; }
+.e-mirror { fill: var(--elec); }
+.e-ball { fill: var(--accent); }
+.e-pad { fill: var(--pad); }
+.fil { fill: none; stroke: var(--fil); stroke-linecap: round; opacity: 0.8; }
+.fil-strong { fill: none; stroke: var(--accent); stroke-linecap: round; }
+.stem { stroke: var(--soma); stroke-width: 1; opacity: 0.5; }
+.soma { fill: var(--soma); stroke: var(--surface); stroke-width: 1; }
+.dend { stroke: var(--soma); stroke-width: 2; stroke-linecap: round; }
+.court { fill: var(--bg); stroke: var(--line); stroke-width: 1.5; }
+.court-half { fill: var(--accent); fill-opacity: 0.08; stroke: var(--accent); stroke-width: 1.5; }
+.dash { stroke: var(--muted); stroke-dasharray: 5 6; stroke-width: 1.5; }
+.paddle { fill: var(--pad); }
+.ball { fill: var(--accent); }
+.ball-ghost { fill: none; stroke: var(--muted); stroke-dasharray: 3 3; }
+.arrow, .leader { fill: none; stroke: currentColor; stroke-width: 1.3; }
+.leader { stroke: var(--muted); stroke-width: 1; }
+.arrow-acc { fill: none; stroke: var(--accent); stroke-width: 1.6; }
+.ah { fill: currentColor; } .ah-acc { fill: var(--accent); }
+.t-sm { font: 12.5px var(--f-body); fill: currentColor; }
+.t-xs { font: 11.5px var(--f-body); fill: currentColor; }
+.t-lbl { font: 600 11px var(--f-mono); letter-spacing: 0.06em; fill: var(--muted); }
+.muted { fill: var(--muted); } .acc { fill: var(--accent); font-weight: 700; }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Boceto · antes de programar</span>
+    <h1>La placa como <em>espejo de la cancha</em></h1>
+    <p class="lede">Cuatro dibujos de cómo se vería la nueva versión: qué parte de la pantalla llega a las neuronas, cómo se ve la placa en 3D, cómo crece la red y cómo cambia una conexión al aprender. Todavía no es la simulación.</p>
+  </header>
+
+  <section class="fig">
+    <div class="fig-head"><span class="step">1</span><h2>La mitad de la cancha se copia en la placa</h2></div>
+    <figure>
+      <div class="svg-scroll"><svg viewBox="0 0 760 350" role="img" aria-label="La mitad de la cancha del lado de la paleta se copia en una zona espejo de la placa: la pelota enciende el electrodo de su misma posición y la paleta enciende la primera columna. Dos zonas motoras, sube y baja, mueven la paleta."><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker><marker id="ah-acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-acc"/></marker></defs><rect class="court" x="20" y="40" width="320" height="240" rx="4"/>
+<rect class="court-half" x="20" y="40" width="160" height="240" rx="4"/>
+<line class="dash" x1="180" y1="40" x2="180" y2="280"/>
+<rect class="paddle" x="26" y="162.8" width="8" height="52" rx="2"/>
+<circle class="ball" cx="108" cy="112" r="7"/>
+<circle class="ball-ghost" cx="269.6" cy="136" r="7"/>
+<text class="t-sm" x="100" y="30" text-anchor="middle">mitad de la paleta</text>
+<text class="t-sm muted" x="260" y="30" text-anchor="middle">no se transmite</text>
+<text class="t-xs muted" x="260" y="160" text-anchor="middle">acá la pelota</text><text class="t-xs muted" x="260" y="174" text-anchor="middle">no llega a la placa</text>
+<text class="t-lbl" x="20" y="330">LA PANTALLA</text>
+<rect class="chip-flat" x="470" y="40" width="240" height="240" rx="4"/>
+<rect class="zone-mirror" x="491.6" y="76" width="96" height="168" rx="3"/>
+<rect class="zone-motor" x="623.6" y="64" width="67.2" height="72" rx="3"/>
+<rect class="zone-motor" x="623.6" y="184" width="67.2" height="72" rx="3"/>
+<rect class="e-mirror" x="493.6" y="79.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="493.6" y="98" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="493.6" y="116.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="493.6" y="135.3" width="12" height="12" rx="2"/>
+<rect class="e-pad" x="493.6" y="154" width="12" height="12" rx="2"/>
+<rect class="e-pad" x="493.6" y="172.7" width="12" height="12" rx="2"/>
+<rect class="e-pad" x="493.6" y="191.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="493.6" y="210" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="493.6" y="228.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="509.6" y="79.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="509.6" y="98" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="509.6" y="116.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="509.6" y="135.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="509.6" y="154" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="509.6" y="172.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="509.6" y="191.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="509.6" y="210" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="509.6" y="228.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="525.6" y="79.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="525.6" y="98" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="525.6" y="116.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="525.6" y="135.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="525.6" y="154" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="525.6" y="172.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="525.6" y="191.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="525.6" y="210" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="525.6" y="228.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="541.6" y="79.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="541.6" y="98" width="12" height="12" rx="2"/>
+<rect class="e-ball" x="541.6" y="116.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="541.6" y="135.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="541.6" y="154" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="541.6" y="172.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="541.6" y="191.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="541.6" y="210" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="541.6" y="228.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="557.6" y="79.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="557.6" y="98" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="557.6" y="116.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="557.6" y="135.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="557.6" y="154" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="557.6" y="172.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="557.6" y="191.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="557.6" y="210" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="557.6" y="228.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="573.6" y="79.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="573.6" y="98" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="573.6" y="116.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="573.6" y="135.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="573.6" y="154" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="573.6" y="172.7" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="573.6" y="191.3" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="573.6" y="210" width="12" height="12" rx="2"/>
+<rect class="e-mirror" x="573.6" y="228.7" width="12" height="12" rx="2"/>
+<text class="t-sm" x="657.2" y="104" text-anchor="middle">sube ↑</text>
+<text class="t-sm" x="657.2" y="224" text-anchor="middle">baja ↓</text>
+<text class="t-sm" x="539.6" y="30" text-anchor="middle">zona espejo</text>
+<text class="t-lbl" x="470" y="330">LA PLACA, VISTA DE ARRIBA</text>
+<path class="arrow-acc" d="M118,112 C 258,52 387.6,62.7 537.6,122.7" marker-end="url(#ah-acc)"/>
+<text class="t-xs acc" x="327.8" y="70" text-anchor="middle">la pelota enciende su electrodo</text>
+<path class="arrow" d="M30,216.8 C 86,320 339.6,320 490.6,182.7" marker-end="url(#ah)"/>
+<text class="t-xs" x="262.8" y="306" text-anchor="middle">la paleta enciende su columna</text></svg></div>
+      <figcaption>A la izquierda, la pantalla que ves vos. A la derecha, la placa vista desde arriba. La mitad de la cancha del lado de la paleta tiene una copia en la placa: la zona espejo.</figcaption>
+    </figure>
+    <div class="body">
+      <p><strong>Cada electrodo de la zona espejo es un "píxel" de esa mitad de cancha.</strong> Donde está la pelota en la pantalla, se enciende el electrodo de la misma posición en la placa. La paleta enciende la primera columna, a la altura donde está.</p>
+      <p>La otra mitad de la cancha no se transmite: cuando la pelota se aleja, la placa no recibe nada. Aparece en el espejo cuando cruza la mitad.</p>
+      <p>Dos zonas más de la placa se escuchan: si la de arriba se activa más, la paleta sube; si se activa más la de abajo, baja.</p>
+    </div>
+  </section>
+
+  <section class="fig">
+    <div class="fig-head"><span class="step">2</span><h2>La placa en 3D</h2></div>
+    <figure>
+      <div class="svg-scroll"><svg viewBox="0 0 760 470" role="img" aria-label="La placa en 3D: neuronas desparramadas al azar sobre el chip, unidas por filamentos que se arquean entre ellas. Un camino de filamentos gruesos va desde la neurona que está sobre el electrodo de la pelota hasta la zona motora que hace subir la paleta."><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker><marker id="ah-acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-acc"/></marker></defs><polygon class="chip-side" points="665.8,235 380,400 380,411.6 665.8,246.6"/>
+<polygon class="chip-side2" points="380,400 94.2,235 94.2,246.6 380,411.6"/>
+<polygon class="chip" points="380,70 665.8,235 380,400 94.2,235"/>
+<circle class="elec" cx="380" cy="78.3" r="1.5"/>
+<circle class="elec" cx="365.7" cy="86.5" r="1.5"/>
+<circle class="elec" cx="351.4" cy="94.8" r="1.5"/>
+<circle class="elec" cx="337.1" cy="103" r="1.5"/>
+<circle class="elec" cx="322.8" cy="111.3" r="1.5"/>
+<circle class="elec" cx="308.6" cy="119.5" r="1.5"/>
+<circle class="elec" cx="294.3" cy="127.8" r="1.5"/>
+<circle class="elec" cx="280" cy="136" r="1.5"/>
+<circle class="elec" cx="265.7" cy="144.3" r="1.5"/>
+<circle class="elec" cx="251.4" cy="152.5" r="1.5"/>
+<circle class="elec" cx="237.1" cy="160.8" r="1.5"/>
+<circle class="elec" cx="222.8" cy="169" r="1.5"/>
+<circle class="elec" cx="208.5" cy="177.3" r="1.5"/>
+<circle class="elec" cx="194.2" cy="185.5" r="1.5"/>
+<circle class="elec" cx="180" cy="193.8" r="1.5"/>
+<circle class="elec" cx="165.7" cy="202" r="1.5"/>
+<circle class="elec" cx="151.4" cy="210.3" r="1.5"/>
+<circle class="elec" cx="137.1" cy="218.5" r="1.5"/>
+<circle class="elec" cx="122.8" cy="226.8" r="1.5"/>
+<circle class="elec" cx="108.5" cy="235" r="1.5"/>
+<circle class="elec" cx="394.3" cy="86.5" r="1.5"/>
+<circle class="elec" cx="380" cy="94.8" r="1.5"/>
+<circle class="elec" cx="365.7" cy="103" r="1.5"/>
+<circle class="elec" cx="351.4" cy="111.3" r="1.5"/>
+<circle class="elec" cx="337.1" cy="119.5" r="1.5"/>
+<circle class="elec" cx="322.8" cy="127.8" r="1.5"/>
+<circle class="elec" cx="308.6" cy="136" r="1.5"/>
+<circle class="elec" cx="294.3" cy="144.3" r="1.5"/>
+<circle class="elec" cx="280" cy="152.5" r="1.5"/>
+<circle class="elec" cx="265.7" cy="160.8" r="1.5"/>
+<circle class="elec" cx="251.4" cy="169" r="1.5"/>
+<circle class="elec" cx="237.1" cy="177.3" r="1.5"/>
+<circle class="elec" cx="222.8" cy="185.5" r="1.5"/>
+<circle class="elec" cx="208.5" cy="193.8" r="1.5"/>
+<circle class="elec" cx="194.2" cy="202" r="1.5"/>
+<circle class="elec" cx="180" cy="210.3" r="1.5"/>
+<circle class="elec" cx="165.7" cy="218.5" r="1.5"/>
+<circle class="elec" cx="151.4" cy="226.8" r="1.5"/>
+<circle class="elec" cx="137.1" cy="235" r="1.5"/>
+<circle class="elec" cx="122.8" cy="243.3" r="1.5"/>
+<circle class="elec" cx="408.6" cy="94.8" r="1.5"/>
+<circle class="elec" cx="394.3" cy="103" r="1.5"/>
+<circle class="elec" cx="380" cy="111.3" r="1.5"/>
+<circle class="elec" cx="365.7" cy="119.5" r="1.5"/>
+<circle class="elec" cx="351.4" cy="127.8" r="1.5"/>
+<circle class="elec" cx="337.1" cy="136" r="1.5"/>
+<circle class="elec" cx="322.8" cy="144.3" r="1.5"/>
+<circle class="elec" cx="308.6" cy="152.5" r="1.5"/>
+<circle class="elec" cx="294.3" cy="160.8" r="1.5"/>
+<circle class="elec" cx="280" cy="169" r="1.5"/>
+<circle class="elec" cx="265.7" cy="177.3" r="1.5"/>
+<circle class="elec" cx="251.4" cy="185.5" r="1.5"/>
+<circle class="elec" cx="237.1" cy="193.8" r="1.5"/>
+<circle class="elec" cx="222.8" cy="202" r="1.5"/>
+<circle class="elec" cx="208.5" cy="210.3" r="1.5"/>
+<circle class="elec" cx="194.2" cy="218.5" r="1.5"/>
+<circle class="elec" cx="180" cy="226.8" r="1.5"/>
+<circle class="elec" cx="165.7" cy="235" r="1.5"/>
+<circle class="elec" cx="151.4" cy="243.3" r="1.5"/>
+<circle class="elec" cx="137.1" cy="251.5" r="1.5"/>
+<circle class="elec" cx="422.9" cy="103" r="1.5"/>
+<circle class="elec" cx="408.6" cy="111.3" r="1.5"/>
+<circle class="elec" cx="394.3" cy="119.5" r="1.5"/>
+<circle class="elec" cx="380" cy="127.8" r="1.5"/>
+<circle class="elec" cx="365.7" cy="136" r="1.5"/>
+<circle class="elec" cx="351.4" cy="144.3" r="1.5"/>
+<circle class="elec" cx="337.1" cy="152.5" r="1.5"/>
+<circle class="elec" cx="322.8" cy="160.8" r="1.5"/>
+<circle class="elec" cx="308.6" cy="169" r="1.5"/>
+<circle class="elec" cx="294.3" cy="177.3" r="1.5"/>
+<circle class="elec" cx="280" cy="185.5" r="1.5"/>
+<circle class="elec" cx="265.7" cy="193.8" r="1.5"/>
+<circle class="elec" cx="251.4" cy="202" r="1.5"/>
+<circle class="elec" cx="237.1" cy="210.3" r="1.5"/>
+<circle class="elec" cx="222.8" cy="218.5" r="1.5"/>
+<circle class="elec" cx="208.5" cy="226.8" r="1.5"/>
+<circle class="elec" cx="194.2" cy="235" r="1.5"/>
+<circle class="elec" cx="180" cy="243.3" r="1.5"/>
+<circle class="elec" cx="165.7" cy="251.5" r="1.5"/>
+<circle class="elec" cx="151.4" cy="259.8" r="1.5"/>
+<circle class="elec" cx="437.2" cy="111.3" r="1.5"/>
+<circle class="elec" cx="422.9" cy="119.5" r="1.5"/>
+<circle class="elec" cx="408.6" cy="127.8" r="1.5"/>
+<circle class="elec" cx="394.3" cy="136" r="1.5"/>
+<circle class="elec" cx="380" cy="144.3" r="1.5"/>
+<circle class="elec" cx="365.7" cy="152.5" r="1.5"/>
+<circle class="elec" cx="351.4" cy="160.8" r="1.5"/>
+<circle class="elec" cx="337.1" cy="169" r="1.5"/>
+<circle class="elec" cx="322.8" cy="177.3" r="1.5"/>
+<circle class="elec" cx="308.6" cy="185.5" r="1.5"/>
+<circle class="elec" cx="294.3" cy="193.8" r="1.5"/>
+<circle class="elec" cx="280" cy="202" r="1.5"/>
+<circle class="elec" cx="265.7" cy="210.3" r="1.5"/>
+<circle class="elec" cx="251.4" cy="218.5" r="1.5"/>
+<circle class="elec" cx="237.1" cy="226.8" r="1.5"/>
+<circle class="elec" cx="222.8" cy="235" r="1.5"/>
+<circle class="elec" cx="208.5" cy="243.3" r="1.5"/>
+<circle class="elec" cx="194.2" cy="251.5" r="1.5"/>
+<circle class="elec" cx="180" cy="259.8" r="1.5"/>
+<circle class="elec" cx="165.7" cy="268" r="1.5"/>
+<circle class="elec" cx="451.4" cy="119.5" r="1.5"/>
+<circle class="elec" cx="437.2" cy="127.8" r="1.5"/>
+<circle class="elec" cx="422.9" cy="136" r="1.5"/>
+<circle class="elec" cx="408.6" cy="144.3" r="1.5"/>
+<circle class="elec" cx="394.3" cy="152.5" r="1.5"/>
+<circle class="elec" cx="380" cy="160.8" r="1.5"/>
+<circle class="elec" cx="365.7" cy="169" r="1.5"/>
+<circle class="elec" cx="351.4" cy="177.3" r="1.5"/>
+<circle class="elec" cx="337.1" cy="185.5" r="1.5"/>
+<circle class="elec" cx="322.8" cy="193.8" r="1.5"/>
+<circle class="elec" cx="308.6" cy="202" r="1.5"/>
+<circle class="elec" cx="294.3" cy="210.3" r="1.5"/>
+<circle class="elec" cx="280" cy="218.5" r="1.5"/>
+<circle class="elec" cx="265.7" cy="226.8" r="1.5"/>
+<circle class="elec" cx="251.4" cy="235" r="1.5"/>
+<circle class="elec" cx="237.1" cy="243.3" r="1.5"/>
+<circle class="elec" cx="222.8" cy="251.5" r="1.5"/>
+<circle class="elec" cx="208.5" cy="259.8" r="1.5"/>
+<circle class="elec" cx="194.2" cy="268" r="1.5"/>
+<circle class="elec" cx="180" cy="276.3" r="1.5"/>
+<circle class="elec" cx="465.7" cy="127.8" r="1.5"/>
+<circle class="elec" cx="451.4" cy="136" r="1.5"/>
+<circle class="elec" cx="437.2" cy="144.3" r="1.5"/>
+<circle class="elec" cx="422.9" cy="152.5" r="1.5"/>
+<circle class="elec" cx="408.6" cy="160.8" r="1.5"/>
+<circle class="elec" cx="394.3" cy="169" r="1.5"/>
+<circle class="elec" cx="380" cy="177.3" r="1.5"/>
+<circle class="elec" cx="365.7" cy="185.5" r="1.5"/>
+<circle class="elec" cx="351.4" cy="193.8" r="1.5"/>
+<circle class="elec" cx="337.1" cy="202" r="1.5"/>
+<circle class="elec" cx="322.8" cy="210.3" r="1.5"/>
+<circle class="elec" cx="308.6" cy="218.5" r="1.5"/>
+<circle class="elec" cx="294.3" cy="226.8" r="1.5"/>
+<circle class="elec" cx="280" cy="235" r="1.5"/>
+<circle class="elec" cx="265.7" cy="243.3" r="1.5"/>
+<circle class="elec" cx="251.4" cy="251.5" r="1.5"/>
+<circle class="elec" cx="237.1" cy="259.8" r="1.5"/>
+<circle class="elec" cx="222.8" cy="268" r="1.5"/>
+<circle class="elec" cx="208.5" cy="276.3" r="1.5"/>
+<circle class="elec" cx="194.2" cy="284.5" r="1.5"/>
+<circle class="elec" cx="480" cy="136" r="1.5"/>
+<circle class="elec" cx="465.7" cy="144.3" r="1.5"/>
+<circle class="elec" cx="451.4" cy="152.5" r="1.5"/>
+<circle class="elec" cx="437.2" cy="160.8" r="1.5"/>
+<circle class="elec" cx="422.9" cy="169" r="1.5"/>
+<circle class="elec" cx="408.6" cy="177.3" r="1.5"/>
+<circle class="elec" cx="394.3" cy="185.5" r="1.5"/>
+<circle class="elec" cx="380" cy="193.8" r="1.5"/>
+<circle class="elec" cx="365.7" cy="202" r="1.5"/>
+<circle class="elec" cx="351.4" cy="210.3" r="1.5"/>
+<circle class="elec" cx="337.1" cy="218.5" r="1.5"/>
+<circle class="elec" cx="322.8" cy="226.8" r="1.5"/>
+<circle class="elec" cx="308.6" cy="235" r="1.5"/>
+<circle class="elec" cx="294.3" cy="243.3" r="1.5"/>
+<circle class="elec" cx="280" cy="251.5" r="1.5"/>
+<circle class="elec" cx="265.7" cy="259.8" r="1.5"/>
+<circle class="elec" cx="251.4" cy="268" r="1.5"/>
+<circle class="elec" cx="237.1" cy="276.3" r="1.5"/>
+<circle class="elec" cx="222.8" cy="284.5" r="1.5"/>
+<circle class="elec" cx="208.5" cy="292.8" r="1.5"/>
+<circle class="elec" cx="494.3" cy="144.3" r="1.5"/>
+<circle class="elec" cx="480" cy="152.5" r="1.5"/>
+<circle class="elec" cx="465.7" cy="160.8" r="1.5"/>
+<circle class="elec" cx="451.4" cy="169" r="1.5"/>
+<circle class="elec" cx="437.2" cy="177.3" r="1.5"/>
+<circle class="elec" cx="422.9" cy="185.5" r="1.5"/>
+<circle class="elec" cx="408.6" cy="193.8" r="1.5"/>
+<circle class="elec" cx="394.3" cy="202" r="1.5"/>
+<circle class="elec" cx="380" cy="210.3" r="1.5"/>
+<circle class="elec" cx="365.7" cy="218.5" r="1.5"/>
+<circle class="elec" cx="351.4" cy="226.8" r="1.5"/>
+<circle class="elec" cx="337.1" cy="235" r="1.5"/>
+<circle class="elec" cx="322.8" cy="243.3" r="1.5"/>
+<circle class="elec" cx="308.6" cy="251.5" r="1.5"/>
+<circle class="elec" cx="294.3" cy="259.8" r="1.5"/>
+<circle class="elec" cx="280" cy="268" r="1.5"/>
+<circle class="elec" cx="265.7" cy="276.3" r="1.5"/>
+<circle class="elec" cx="251.4" cy="284.5" r="1.5"/>
+<circle class="elec" cx="237.1" cy="292.8" r="1.5"/>
+<circle class="elec" cx="222.8" cy="301" r="1.5"/>
+<circle class="elec" cx="508.6" cy="152.5" r="1.5"/>
+<circle class="elec" cx="494.3" cy="160.8" r="1.5"/>
+<circle class="elec" cx="480" cy="169" r="1.5"/>
+<circle class="elec" cx="465.7" cy="177.3" r="1.5"/>
+<circle class="elec" cx="451.4" cy="185.5" r="1.5"/>
+<circle class="elec" cx="437.2" cy="193.8" r="1.5"/>
+<circle class="elec" cx="422.9" cy="202" r="1.5"/>
+<circle class="elec" cx="408.6" cy="210.3" r="1.5"/>
+<circle class="elec" cx="394.3" cy="218.5" r="1.5"/>
+<circle class="elec" cx="380" cy="226.8" r="1.5"/>
+<circle class="elec" cx="365.7" cy="235" r="1.5"/>
+<circle class="elec" cx="351.4" cy="243.3" r="1.5"/>
+<circle class="elec" cx="337.1" cy="251.5" r="1.5"/>
+<circle class="elec" cx="322.8" cy="259.8" r="1.5"/>
+<circle class="elec" cx="308.6" cy="268" r="1.5"/>
+<circle class="elec" cx="294.3" cy="276.3" r="1.5"/>
+<circle class="elec" cx="280" cy="284.5" r="1.5"/>
+<circle class="elec" cx="265.7" cy="292.8" r="1.5"/>
+<circle class="elec" cx="251.4" cy="301" r="1.5"/>
+<circle class="elec" cx="237.1" cy="309.3" r="1.5"/>
+<circle class="elec" cx="522.9" cy="160.8" r="1.5"/>
+<circle class="elec" cx="508.6" cy="169" r="1.5"/>
+<circle class="elec" cx="494.3" cy="177.3" r="1.5"/>
+<circle class="elec" cx="480" cy="185.5" r="1.5"/>
+<circle class="elec" cx="465.7" cy="193.8" r="1.5"/>
+<circle class="elec" cx="451.4" cy="202" r="1.5"/>
+<circle class="elec" cx="437.2" cy="210.3" r="1.5"/>
+<circle class="elec" cx="422.9" cy="218.5" r="1.5"/>
+<circle class="elec" cx="408.6" cy="226.8" r="1.5"/>
+<circle class="elec" cx="394.3" cy="235" r="1.5"/>
+<circle class="elec" cx="380" cy="243.3" r="1.5"/>
+<circle class="elec" cx="365.7" cy="251.5" r="1.5"/>
+<circle class="elec" cx="351.4" cy="259.8" r="1.5"/>
+<circle class="elec" cx="337.1" cy="268" r="1.5"/>
+<circle class="elec" cx="322.8" cy="276.3" r="1.5"/>
+<circle class="elec" cx="308.6" cy="284.5" r="1.5"/>
+<circle class="elec" cx="294.3" cy="292.8" r="1.5"/>
+<circle class="elec" cx="280" cy="301" r="1.5"/>
+<circle class="elec" cx="265.7" cy="309.3" r="1.5"/>
+<circle class="elec" cx="251.4" cy="317.5" r="1.5"/>
+<circle class="elec" cx="537.2" cy="169" r="1.5"/>
+<circle class="elec" cx="522.9" cy="177.3" r="1.5"/>
+<circle class="elec" cx="508.6" cy="185.5" r="1.5"/>
+<circle class="elec" cx="494.3" cy="193.8" r="1.5"/>
+<circle class="elec" cx="480" cy="202" r="1.5"/>
+<circle class="elec" cx="465.7" cy="210.3" r="1.5"/>
+<circle class="elec" cx="451.4" cy="218.5" r="1.5"/>
+<circle class="elec" cx="437.2" cy="226.8" r="1.5"/>
+<circle class="elec" cx="422.9" cy="235" r="1.5"/>
+<circle class="elec" cx="408.6" cy="243.3" r="1.5"/>
+<circle class="elec" cx="394.3" cy="251.5" r="1.5"/>
+<circle class="elec" cx="380" cy="259.8" r="1.5"/>
+<circle class="elec" cx="365.7" cy="268" r="1.5"/>
+<circle class="elec" cx="351.4" cy="276.3" r="1.5"/>
+<circle class="elec" cx="337.1" cy="284.5" r="1.5"/>
+<circle class="elec" cx="322.8" cy="292.8" r="1.5"/>
+<circle class="elec" cx="308.6" cy="301" r="1.5"/>
+<circle class="elec" cx="294.3" cy="309.3" r="1.5"/>
+<circle class="elec" cx="280" cy="317.5" r="1.5"/>
+<circle class="elec" cx="265.7" cy="325.8" r="1.5"/>
+<circle class="elec" cx="551.5" cy="177.3" r="1.5"/>
+<circle class="elec" cx="537.2" cy="185.5" r="1.5"/>
+<circle class="elec" cx="522.9" cy="193.8" r="1.5"/>
+<circle class="elec" cx="508.6" cy="202" r="1.5"/>
+<circle class="elec" cx="494.3" cy="210.3" r="1.5"/>
+<circle class="elec" cx="480" cy="218.5" r="1.5"/>
+<circle class="elec" cx="465.7" cy="226.8" r="1.5"/>
+<circle class="elec" cx="451.4" cy="235" r="1.5"/>
+<circle class="elec" cx="437.2" cy="243.3" r="1.5"/>
+<circle class="elec" cx="422.9" cy="251.5" r="1.5"/>
+<circle class="elec" cx="408.6" cy="259.8" r="1.5"/>
+<circle class="elec" cx="394.3" cy="268" r="1.5"/>
+<circle class="elec" cx="380" cy="276.3" r="1.5"/>
+<circle class="elec" cx="365.7" cy="284.5" r="1.5"/>
+<circle class="elec" cx="351.4" cy="292.8" r="1.5"/>
+<circle class="elec" cx="337.1" cy="301" r="1.5"/>
+<circle class="elec" cx="322.8" cy="309.3" r="1.5"/>
+<circle class="elec" cx="308.6" cy="317.5" r="1.5"/>
+<circle class="elec" cx="294.3" cy="325.8" r="1.5"/>
+<circle class="elec" cx="280" cy="334" r="1.5"/>
+<circle class="elec" cx="565.8" cy="185.5" r="1.5"/>
+<circle class="elec" cx="551.5" cy="193.8" r="1.5"/>
+<circle class="elec" cx="537.2" cy="202" r="1.5"/>
+<circle class="elec" cx="522.9" cy="210.3" r="1.5"/>
+<circle class="elec" cx="508.6" cy="218.5" r="1.5"/>
+<circle class="elec" cx="494.3" cy="226.8" r="1.5"/>
+<circle class="elec" cx="480" cy="235" r="1.5"/>
+<circle class="elec" cx="465.7" cy="243.3" r="1.5"/>
+<circle class="elec" cx="451.4" cy="251.5" r="1.5"/>
+<circle class="elec" cx="437.2" cy="259.8" r="1.5"/>
+<circle class="elec" cx="422.9" cy="268" r="1.5"/>
+<circle class="elec" cx="408.6" cy="276.3" r="1.5"/>
+<circle class="elec" cx="394.3" cy="284.5" r="1.5"/>
+<circle class="elec" cx="380" cy="292.8" r="1.5"/>
+<circle class="elec" cx="365.7" cy="301" r="1.5"/>
+<circle class="elec" cx="351.4" cy="309.3" r="1.5"/>
+<circle class="elec" cx="337.1" cy="317.5" r="1.5"/>
+<circle class="elec" cx="322.8" cy="325.8" r="1.5"/>
+<circle class="elec" cx="308.6" cy="334" r="1.5"/>
+<circle class="elec" cx="294.3" cy="342.3" r="1.5"/>
+<circle class="elec" cx="580" cy="193.8" r="1.5"/>
+<circle class="elec" cx="565.8" cy="202" r="1.5"/>
+<circle class="elec" cx="551.5" cy="210.3" r="1.5"/>
+<circle class="elec" cx="537.2" cy="218.5" r="1.5"/>
+<circle class="elec" cx="522.9" cy="226.8" r="1.5"/>
+<circle class="elec" cx="508.6" cy="235" r="1.5"/>
+<circle class="elec" cx="494.3" cy="243.3" r="1.5"/>
+<circle class="elec" cx="480" cy="251.5" r="1.5"/>
+<circle class="elec" cx="465.7" cy="259.8" r="1.5"/>
+<circle class="elec" cx="451.4" cy="268" r="1.5"/>
+<circle class="elec" cx="437.2" cy="276.3" r="1.5"/>
+<circle class="elec" cx="422.9" cy="284.5" r="1.5"/>
+<circle class="elec" cx="408.6" cy="292.8" r="1.5"/>
+<circle class="elec" cx="394.3" cy="301" r="1.5"/>
+<circle class="elec" cx="380" cy="309.3" r="1.5"/>
+<circle class="elec" cx="365.7" cy="317.5" r="1.5"/>
+<circle class="elec" cx="351.4" cy="325.8" r="1.5"/>
+<circle class="elec" cx="337.1" cy="334" r="1.5"/>
+<circle class="elec" cx="322.8" cy="342.3" r="1.5"/>
+<circle class="elec" cx="308.6" cy="350.5" r="1.5"/>
+<circle class="elec" cx="594.3" cy="202" r="1.5"/>
+<circle class="elec" cx="580" cy="210.3" r="1.5"/>
+<circle class="elec" cx="565.8" cy="218.5" r="1.5"/>
+<circle class="elec" cx="551.5" cy="226.8" r="1.5"/>
+<circle class="elec" cx="537.2" cy="235" r="1.5"/>
+<circle class="elec" cx="522.9" cy="243.3" r="1.5"/>
+<circle class="elec" cx="508.6" cy="251.5" r="1.5"/>
+<circle class="elec" cx="494.3" cy="259.8" r="1.5"/>
+<circle class="elec" cx="480" cy="268" r="1.5"/>
+<circle class="elec" cx="465.7" cy="276.3" r="1.5"/>
+<circle class="elec" cx="451.4" cy="284.5" r="1.5"/>
+<circle class="elec" cx="437.2" cy="292.8" r="1.5"/>
+<circle class="elec" cx="422.9" cy="301" r="1.5"/>
+<circle class="elec" cx="408.6" cy="309.3" r="1.5"/>
+<circle class="elec" cx="394.3" cy="317.5" r="1.5"/>
+<circle class="elec" cx="380" cy="325.8" r="1.5"/>
+<circle class="elec" cx="365.7" cy="334" r="1.5"/>
+<circle class="elec" cx="351.4" cy="342.3" r="1.5"/>
+<circle class="elec" cx="337.1" cy="350.5" r="1.5"/>
+<circle class="elec" cx="322.8" cy="358.8" r="1.5"/>
+<circle class="elec" cx="608.6" cy="210.3" r="1.5"/>
+<circle class="elec" cx="594.3" cy="218.5" r="1.5"/>
+<circle class="elec" cx="580" cy="226.8" r="1.5"/>
+<circle class="elec" cx="565.8" cy="235" r="1.5"/>
+<circle class="elec" cx="551.5" cy="243.3" r="1.5"/>
+<circle class="elec" cx="537.2" cy="251.5" r="1.5"/>
+<circle class="elec" cx="522.9" cy="259.8" r="1.5"/>
+<circle class="elec" cx="508.6" cy="268" r="1.5"/>
+<circle class="elec" cx="494.3" cy="276.3" r="1.5"/>
+<circle class="elec" cx="480" cy="284.5" r="1.5"/>
+<circle class="elec" cx="465.7" cy="292.8" r="1.5"/>
+<circle class="elec" cx="451.4" cy="301" r="1.5"/>
+<circle class="elec" cx="437.2" cy="309.3" r="1.5"/>
+<circle class="elec" cx="422.9" cy="317.5" r="1.5"/>
+<circle class="elec" cx="408.6" cy="325.8" r="1.5"/>
+<circle class="elec" cx="394.3" cy="334" r="1.5"/>
+<circle class="elec" cx="380" cy="342.3" r="1.5"/>
+<circle class="elec" cx="365.7" cy="350.5" r="1.5"/>
+<circle class="elec" cx="351.4" cy="358.8" r="1.5"/>
+<circle class="elec" cx="337.1" cy="367" r="1.5"/>
+<circle class="elec" cx="622.9" cy="218.5" r="1.5"/>
+<circle class="elec" cx="608.6" cy="226.8" r="1.5"/>
+<circle class="elec" cx="594.3" cy="235" r="1.5"/>
+<circle class="elec" cx="580" cy="243.3" r="1.5"/>
+<circle class="elec" cx="565.8" cy="251.5" r="1.5"/>
+<circle class="elec" cx="551.5" cy="259.8" r="1.5"/>
+<circle class="elec" cx="537.2" cy="268" r="1.5"/>
+<circle class="elec" cx="522.9" cy="276.3" r="1.5"/>
+<circle class="elec" cx="508.6" cy="284.5" r="1.5"/>
+<circle class="elec" cx="494.3" cy="292.8" r="1.5"/>
+<circle class="elec" cx="480" cy="301" r="1.5"/>
+<circle class="elec" cx="465.7" cy="309.3" r="1.5"/>
+<circle class="elec" cx="451.4" cy="317.5" r="1.5"/>
+<circle class="elec" cx="437.2" cy="325.8" r="1.5"/>
+<circle class="elec" cx="422.9" cy="334" r="1.5"/>
+<circle class="elec" cx="408.6" cy="342.3" r="1.5"/>
+<circle class="elec" cx="394.3" cy="350.5" r="1.5"/>
+<circle class="elec" cx="380" cy="358.8" r="1.5"/>
+<circle class="elec" cx="365.7" cy="367" r="1.5"/>
+<circle class="elec" cx="351.4" cy="375.3" r="1.5"/>
+<circle class="elec" cx="637.2" cy="226.8" r="1.5"/>
+<circle class="elec" cx="622.9" cy="235" r="1.5"/>
+<circle class="elec" cx="608.6" cy="243.3" r="1.5"/>
+<circle class="elec" cx="594.3" cy="251.5" r="1.5"/>
+<circle class="elec" cx="580" cy="259.8" r="1.5"/>
+<circle class="elec" cx="565.8" cy="268" r="1.5"/>
+<circle class="elec" cx="551.5" cy="276.3" r="1.5"/>
+<circle class="elec" cx="537.2" cy="284.5" r="1.5"/>
+<circle class="elec" cx="522.9" cy="292.8" r="1.5"/>
+<circle class="elec" cx="508.6" cy="301" r="1.5"/>
+<circle class="elec" cx="494.3" cy="309.3" r="1.5"/>
+<circle class="elec" cx="480" cy="317.5" r="1.5"/>
+<circle class="elec" cx="465.7" cy="325.8" r="1.5"/>
+<circle class="elec" cx="451.4" cy="334" r="1.5"/>
+<circle class="elec" cx="437.2" cy="342.3" r="1.5"/>
+<circle class="elec" cx="422.9" cy="350.5" r="1.5"/>
+<circle class="elec" cx="408.6" cy="358.8" r="1.5"/>
+<circle class="elec" cx="394.3" cy="367" r="1.5"/>
+<circle class="elec" cx="380" cy="375.3" r="1.5"/>
+<circle class="elec" cx="365.7" cy="383.5" r="1.5"/>
+<circle class="elec" cx="651.5" cy="235" r="1.5"/>
+<circle class="elec" cx="637.2" cy="243.3" r="1.5"/>
+<circle class="elec" cx="622.9" cy="251.5" r="1.5"/>
+<circle class="elec" cx="608.6" cy="259.8" r="1.5"/>
+<circle class="elec" cx="594.3" cy="268" r="1.5"/>
+<circle class="elec" cx="580" cy="276.3" r="1.5"/>
+<circle class="elec" cx="565.8" cy="284.5" r="1.5"/>
+<circle class="elec" cx="551.5" cy="292.8" r="1.5"/>
+<circle class="elec" cx="537.2" cy="301" r="1.5"/>
+<circle class="elec" cx="522.9" cy="309.3" r="1.5"/>
+<circle class="elec" cx="508.6" cy="317.5" r="1.5"/>
+<circle class="elec" cx="494.3" cy="325.8" r="1.5"/>
+<circle class="elec" cx="480" cy="334" r="1.5"/>
+<circle class="elec" cx="465.7" cy="342.3" r="1.5"/>
+<circle class="elec" cx="451.4" cy="350.5" r="1.5"/>
+<circle class="elec" cx="437.2" cy="358.8" r="1.5"/>
+<circle class="elec" cx="422.9" cy="367" r="1.5"/>
+<circle class="elec" cx="408.6" cy="375.3" r="1.5"/>
+<circle class="elec" cx="394.3" cy="383.5" r="1.5"/>
+<circle class="elec" cx="380" cy="391.8" r="1.5"/>
+<polygon class="zone-mirror" points="362.9,109.6 477.2,175.6 277.1,291.1 162.8,225.1"/>
+<polygon class="zone-motor" points="534.3,192.1 614.3,238.3 528.6,287.8 448.6,241.6"/>
+<polygon class="zone-motor" points="391.4,274.6 471.4,320.8 385.7,370.3 305.7,324.1"/>
+<polygon class="e-mirror" points="361.3,115.9 371,121.5 361.3,127.1 351.5,121.5"/>
+<polygon class="e-mirror" points="339,128.7 348.8,134.4 339,140 329.3,134.4"/>
+<polygon class="e-mirror" points="316.8,141.6 326.5,147.2 316.8,152.8 307.1,147.2"/>
+<polygon class="e-mirror" points="294.6,154.4 304.3,160 294.6,165.6 284.9,160"/>
+<polygon class="e-pad" points="272.4,167.2 282.1,172.8 272.4,178.5 262.6,172.8"/>
+<polygon class="e-pad" points="250.1,180.1 259.8,185.7 250.1,191.3 240.4,185.7"/>
+<polygon class="e-pad" points="227.9,192.9 237.6,198.5 227.9,204.1 218.2,198.5"/>
+<polygon class="e-mirror" points="205.7,205.7 215.4,211.3 205.7,217 196,211.3"/>
+<polygon class="e-mirror" points="183.4,218.6 193.2,224.2 183.4,229.8 173.7,224.2"/>
+<polygon class="e-mirror" points="380.3,126.9 390,132.5 380.3,138.1 370.6,132.5"/>
+<polygon class="e-mirror" points="358.1,139.7 367.8,145.3 358.1,151 348.4,145.3"/>
+<polygon class="e-mirror" points="335.9,152.6 345.6,158.2 335.9,163.8 326.1,158.2"/>
+<polygon class="e-mirror" points="313.6,165.4 323.4,171 313.6,176.6 303.9,171"/>
+<polygon class="e-mirror" points="291.4,178.2 301.1,183.9 291.4,189.5 281.7,183.9"/>
+<polygon class="e-mirror" points="269.2,191.1 278.9,196.7 269.2,202.3 259.5,196.7"/>
+<polygon class="e-mirror" points="247,203.9 256.7,209.5 247,215.1 237.2,209.5"/>
+<polygon class="e-mirror" points="224.7,216.7 234.4,222.3 224.7,228 215,222.3"/>
+<polygon class="e-mirror" points="202.5,229.6 212.2,235.2 202.5,240.8 192.8,235.2"/>
+<polygon class="e-mirror" points="399.4,137.9 409.1,143.5 399.4,149.1 389.7,143.5"/>
+<polygon class="e-mirror" points="377.1,150.7 386.9,156.4 377.1,162 367.4,156.4"/>
+<polygon class="e-mirror" points="354.9,163.6 364.6,169.2 354.9,174.8 345.2,169.2"/>
+<polygon class="e-mirror" points="332.7,176.4 342.4,182 332.7,187.6 323,182"/>
+<polygon class="e-mirror" points="310.5,189.2 320.2,194.8 310.5,200.5 300.7,194.8"/>
+<polygon class="e-mirror" points="288.2,202.1 297.9,207.7 288.2,213.3 278.5,207.7"/>
+<polygon class="e-mirror" points="266,214.9 275.7,220.5 266,226.1 256.3,220.5"/>
+<polygon class="e-mirror" points="243.8,227.7 253.5,233.3 243.8,239 234.1,233.3"/>
+<polygon class="e-mirror" points="221.6,240.6 231.3,246.2 221.6,251.8 211.8,246.2"/>
+<polygon class="e-mirror" points="418.4,148.9 428.1,154.5 418.4,160.1 408.7,154.5"/>
+<polygon class="e-mirror" points="396.2,161.7 405.9,167.4 396.2,173 386.5,167.4"/>
+<polygon class="e-ball" points="374,174.6 383.7,180.2 374,185.8 364.3,180.2"/>
+<polygon class="e-mirror" points="351.7,187.4 361.5,193 351.7,198.6 342,193"/>
+<polygon class="e-mirror" points="329.5,200.2 339.2,205.9 329.5,211.5 319.8,205.9"/>
+<polygon class="e-mirror" points="307.3,213.1 317,218.7 307.3,224.3 297.6,218.7"/>
+<polygon class="e-mirror" points="285.1,225.9 294.8,231.5 285.1,237.1 275.3,231.5"/>
+<polygon class="e-mirror" points="262.8,238.7 272.5,244.3 262.8,250 253.1,244.3"/>
+<polygon class="e-mirror" points="240.6,251.6 250.3,257.2 240.6,262.8 230.9,257.2"/>
+<polygon class="e-mirror" points="437.5,159.9 447.2,165.5 437.5,171.1 427.8,165.5"/>
+<polygon class="e-mirror" points="415.2,172.7 425,178.4 415.2,184 405.5,178.3"/>
+<polygon class="e-mirror" points="393,185.6 402.7,191.2 393,196.8 383.3,191.2"/>
+<polygon class="e-mirror" points="370.8,198.4 380.5,204 370.8,209.6 361.1,204"/>
+<polygon class="e-mirror" points="348.6,211.2 358.3,216.8 348.6,222.5 338.8,216.8"/>
+<polygon class="e-mirror" points="326.3,224.1 336.1,229.7 326.3,235.3 316.6,229.7"/>
+<polygon class="e-mirror" points="304.1,236.9 313.8,242.5 304.1,248.1 294.4,242.5"/>
+<polygon class="e-mirror" points="281.9,249.7 291.6,255.4 281.9,261 272.2,255.3"/>
+<polygon class="e-mirror" points="259.7,262.6 269.4,268.2 259.7,273.8 249.9,268.2"/>
+<polygon class="e-mirror" points="456.5,170.9 466.2,176.5 456.5,182.1 446.8,176.5"/>
+<polygon class="e-mirror" points="434.3,183.7 444,189.3 434.3,195 424.6,189.3"/>
+<polygon class="e-mirror" points="412.1,196.6 421.8,202.2 412.1,207.8 402.4,202.2"/>
+<polygon class="e-mirror" points="389.8,209.4 399.6,215 389.8,220.6 380.1,215"/>
+<polygon class="e-mirror" points="367.6,222.2 377.3,227.8 367.6,233.5 357.9,227.8"/>
+<polygon class="e-mirror" points="345.4,235.1 355.1,240.7 345.4,246.3 335.7,240.7"/>
+<polygon class="e-mirror" points="323.2,247.9 332.9,253.5 323.2,259.1 313.4,253.5"/>
+<polygon class="e-mirror" points="300.9,260.7 310.7,266.3 300.9,272 291.2,266.3"/>
+<polygon class="e-mirror" points="278.7,273.6 288.4,279.2 278.7,284.8 269,279.2"/>
+<path class="fil" d="M202.6,250.5 Q201.5,241.5 200.3,251.2" stroke-width="0.8"/>
+<path class="fil" d="M202.6,250.5 Q192.8,239.8 182.9,250.5" stroke-width="0.8"/>
+<path class="fil" d="M202.6,250.5 Q216.9,236.5 231.2,245.9" stroke-width="1"/>
+<path class="fil" d="M610.7,222.4 Q623.4,210.8 636.1,221.5" stroke-width="0.5"/>
+<path class="fil" d="M610.7,222.4 Q601.5,218.9 592.2,241.5" stroke-width="1.5"/>
+<path class="fil" d="M610.7,222.4 Q608.4,220.5 606,244.1" stroke-width="1.8"/>
+<path class="fil" d="M460.9,141.7 Q451.5,131.4 442.1,143.3" stroke-width="0.5"/>
+<path class="fil" d="M460.9,141.7 Q461.8,135.2 462.7,157.1" stroke-width="1.5"/>
+<path class="fil" d="M460.9,141.7 Q466.3,140.6 471.6,164.2" stroke-width="0.6"/>
+<path class="fil" d="M382.9,373.1 Q385.8,362.6 388.6,373.1" stroke-width="0.7"/>
+<path class="fil" d="M382.9,373.1 Q392.5,358.7 402.1,367.4" stroke-width="1.7"/>
+<path class="fil" d="M382.9,373.1 Q366.6,350.7 350.2,354.3" stroke-width="0.8"/>
+<path class="fil" d="M354.8,227.4 Q350.3,213.5 345.8,222.5" stroke-width="1"/>
+<path class="fil" d="M354.8,227.4 Q351,202.3 347.2,203.5" stroke-width="1"/>
+<path class="fil" d="M354.8,227.4 Q337.2,219.1 319.6,235.6" stroke-width="1.2"/>
+<path class="fil" d="M379.4,313.1 Q363.2,301.6 346.9,312.9" stroke-width="1.4"/>
+<path class="fil" d="M379.4,313.1 Q370.7,293.7 362,298.7" stroke-width="1"/>
+<path class="fil" d="M379.4,313.1 Q374.3,291.3 369.3,294.6" stroke-width="1.2"/>
+<path class="fil" d="M280.6,278.4 Q265.5,268.8 250.4,283.8" stroke-width="1.5"/>
+<path class="fil" d="M280.6,278.4 Q292.9,255.2 305.2,258.8" stroke-width="1"/>
+<path class="fil" d="M280.6,278.4 Q304.2,259.2 327.7,269" stroke-width="0.6"/>
+<path class="fil" d="M482.4,161.8 Q477,151.8 471.6,164.2" stroke-width="1.6"/>
+<path class="fil" d="M482.4,161.8 Q472.6,148.7 462.7,157.1" stroke-width="1.6"/>
+<path class="fil" d="M482.4,161.8 Q464.8,153 447.1,172.2" stroke-width="0.5"/>
+<path class="fil" d="M505.2,259.2 Q504.6,249.5 504,260.4" stroke-width="0.9"/>
+<path class="fil" d="M505.2,259.2 Q487.2,245 469.1,255.5" stroke-width="0.6"/>
+<path class="fil" d="M505.2,259.2 Q490.6,256.4 476,279.7" stroke-width="1.3"/>
+<path class="fil" d="M606,244.1 Q599.1,232.7 592.2,241.5" stroke-width="0.5"/>
+<path class="fil" d="M606,244.1 Q621,218.6 636.1,221.5" stroke-width="1"/>
+<path class="fil" d="M471.6,164.2 Q467.2,149.1 462.7,157.1" stroke-width="1.9"/>
+<path class="fil" d="M471.6,164.2 Q459.4,156.9 447.1,172.2" stroke-width="1.7"/>
+<path class="fil" d="M340.2,290.4 Q341.1,285.2 341.9,300.6" stroke-width="1.6"/>
+<path class="fil" d="M340.2,290.4 Q351.1,283.6 362,298.7" stroke-width="1.9"/>
+<path class="fil" d="M340.2,290.4 Q354.7,281.1 369.3,294.6" stroke-width="0.5"/>
+<path class="fil" d="M295.7,310.2 Q305.9,303.8 316.1,320.5" stroke-width="1"/>
+<path class="fil" d="M295.7,310.2 Q318.8,292 341.9,300.6" stroke-width="1.6"/>
+<path class="fil" d="M295.7,310.2 Q321.3,297.8 346.9,312.9" stroke-width="0.5"/>
+<path class="fil" d="M442.5,220.6 Q461.1,211.7 479.7,228.7" stroke-width="0.7"/>
+<path class="fil" d="M442.5,220.6 Q423.8,217.7 405,242.3" stroke-width="1.8"/>
+<path class="fil" d="M442.5,220.6 Q468,202.5 493.5,212.9" stroke-width="0.7"/>
+<path class="fil" d="M327.6,263.2 Q327.7,254.6 327.7,269" stroke-width="0.9"/>
+<path class="fil" d="M327.6,263.2 Q316.4,248.9 305.2,258.8" stroke-width="1.8"/>
+<path class="fil" d="M327.6,263.2 Q323.6,235.6 319.6,235.6" stroke-width="1.6"/>
+<path class="fil" d="M191.8,232.2 Q197.2,229.8 202.6,250.5" stroke-width="1.9"/>
+<path class="fil" d="M191.8,232.2 Q187.3,229.2 182.9,250.5" stroke-width="1.6"/>
+<path class="fil" d="M191.8,232.2 Q196,229.3 200.3,251.2" stroke-width="0.6"/>
+<path class="fil" d="M217.8,285.2 Q234.1,271.5 250.4,283.8" stroke-width="1.1"/>
+<path class="fil" d="M217.8,285.2 Q209,253.2 200.3,251.2" stroke-width="1.3"/>
+<path class="fil" d="M217.8,285.2 Q210.2,253.3 202.6,250.5" stroke-width="1.3"/>
+<path class="fil" d="M360.1,139.3 Q338.3,119.7 316.4,126.9" stroke-width="1.1"/>
+<path class="fil" d="M360.1,139.3 Q354.1,141.6 348.1,174.7" stroke-width="0.8"/>
+<path class="fil" d="M360.1,139.3 Q331,119.1 301.9,129.8" stroke-width="1.4"/>
+<path class="fil" d="M405,242.3 Q403.8,239.3 402.5,260.7" stroke-width="1.1"/>
+<path class="fil" d="M405,242.3 Q379.9,220 354.8,227.4" stroke-width="0.5"/>
+<path class="fil" d="M447.1,172.2 Q454.9,151.4 462.7,157.1" stroke-width="1.6"/>
+<path class="fil" d="M447.1,172.2 Q432.9,151.5 418.6,158.7" stroke-width="0.6"/>
+<path class="fil" d="M362,298.7 Q365.6,287.4 369.3,294.6" stroke-width="0.5"/>
+<path class="fil" d="M362,298.7 Q352,289.3 341.9,300.6" stroke-width="1.5"/>
+<path class="fil" d="M327.7,269 Q316.4,252.8 305.2,258.8" stroke-width="1"/>
+<path class="fil" d="M327.7,269 Q334,266 340.2,290.4" stroke-width="1.3"/>
+<path class="fil" d="M370.7,193.5 Q361.3,175.3 352,179.9" stroke-width="0.8"/>
+<path class="fil" d="M370.7,193.5 Q386,180.5 401.2,193.3" stroke-width="2"/>
+<path class="fil" d="M370.7,193.5 Q358.9,186.2 347.2,203.5" stroke-width="0.6"/>
+<path class="fil" d="M465.4,278.6 Q470.7,269.2 476,279.7" stroke-width="0.7"/>
+<path class="fil" d="M465.4,278.6 Q456.9,270 448.3,284.5" stroke-width="0.5"/>
+<path class="fil" d="M465.4,278.6 Q453.1,265 440.7,274.2" stroke-width="1.2"/>
+<path class="fil" d="M334.9,341.9 Q342.6,336.1 350.2,354.3" stroke-width="0.8"/>
+<path class="fil" d="M334.9,341.9 Q325.5,318.7 316.1,320.5" stroke-width="0.9"/>
+<path class="fil" d="M334.9,341.9 Q340.9,313.9 346.9,312.9" stroke-width="1.6"/>
+<path class="fil" d="M558.2,243.4 Q553.9,232.1 549.7,243.7" stroke-width="1.2"/>
+<path class="fil" d="M558.2,243.4 Q559.8,239.6 561.3,258" stroke-width="0.7"/>
+<path class="fil" d="M558.2,243.4 Q575.2,230.7 592.2,241.5" stroke-width="1.3"/>
+<path class="fil" d="M441.7,330.7 Q427.4,321.5 413.1,335.1" stroke-width="0.7"/>
+<path class="fil" d="M441.7,330.7 Q426.6,316.5 411.5,326.3" stroke-width="1.4"/>
+<path class="fil" d="M441.7,330.7 Q457.8,303.2 474,305.5" stroke-width="1"/>
+<path class="fil" d="M316.4,126.9 Q309.2,117.7 301.9,129.8" stroke-width="0.6"/>
+<path class="fil" d="M316.4,126.9 Q295,119.1 273.5,137" stroke-width="0.5"/>
+<path class="fil" d="M524.4,223.6 Q523.5,216 522.6,227.8" stroke-width="1.5"/>
+<path class="fil" d="M524.4,223.6 Q510.4,207.7 496.3,215" stroke-width="2"/>
+<path class="fil" d="M524.4,223.6 Q509,204.8 493.5,212.9" stroke-width="0.4"/>
+<path class="fil" d="M469.1,255.5 Q486.6,245.1 504,260.4" stroke-width="0.8"/>
+<path class="fil" d="M469.1,255.5 Q467.3,254.2 465.4,278.6" stroke-width="1"/>
+<path class="fil" d="M418.6,158.7 Q430.4,137.5 442.1,143.3" stroke-width="1.7"/>
+<path class="fil" d="M418.6,158.7 Q421.9,158 425.2,183.7" stroke-width="0.9"/>
+<path class="fil" d="M255.3,209.2 Q243,201.3 230.8,215.6" stroke-width="0.9"/>
+<path class="fil" d="M255.3,209.2 Q238.3,194.4 221.3,204.9" stroke-width="2"/>
+<path class="fil" d="M255.3,209.2 Q234.9,198.1 214.5,215.2" stroke-width="1.3"/>
+<path class="fil" d="M425.2,183.7 Q428,176.4 430.8,188.3" stroke-width="1.5"/>
+<path class="fil" d="M425.2,183.7 Q413.2,176.4 401.2,193.3" stroke-width="1.8"/>
+<path class="fil" d="M425.2,183.7 Q436.2,164.9 447.1,172.2" stroke-width="0.5"/>
+<path class="fil" d="M442.1,143.3 Q452.4,136.9 462.7,157.1" stroke-width="1.4"/>
+<path class="fil" d="M522.6,227.8 Q509.4,208.9 496.3,215" stroke-width="1"/>
+<path class="fil" d="M522.6,227.8 Q536.1,222.6 549.7,243.7" stroke-width="0.7"/>
+<path class="fil" d="M513.8,175.2 Q498.1,156.4 482.4,161.8" stroke-width="1"/>
+<path class="fil" d="M513.8,175.2 Q492.7,154.8 471.6,164.2" stroke-width="1.8"/>
+<path class="fil" d="M513.8,175.2 Q488.3,151.6 462.7,157.1" stroke-width="1.2"/>
+<path class="fil" d="M448.3,284.5 Q443.8,272.2 439.3,280.5" stroke-width="1.9"/>
+<path class="fil" d="M448.3,284.5 Q444.5,267 440.7,274.2" stroke-width="1.4"/>
+<path class="fil" d="M198.6,198.7 Q210,191 221.3,204.9" stroke-width="1.9"/>
+<path class="fil" d="M198.6,198.7 Q206.5,194.8 214.5,215.2" stroke-width="0.8"/>
+<path class="fil" d="M198.6,198.7 Q214.7,193.5 230.8,215.6" stroke-width="1.4"/>
+<path class="fil" d="M402.1,367.4 Q395.3,360 388.6,373.1" stroke-width="1.1"/>
+<path class="fil" d="M402.1,367.4 Q376.1,346 350.2,354.3" stroke-width="0.6"/>
+<path class="fil" d="M231.2,245.9 Q215.8,237.1 200.3,251.2" stroke-width="1.5"/>
+<path class="fil" d="M231.2,245.9 Q211.5,225.7 191.8,232.2" stroke-width="0.9"/>
+<path class="fil" d="M388.6,373.1 Q369.4,349.1 350.2,354.3" stroke-width="0.8"/>
+<path class="fil" d="M549.7,243.7 Q555.5,238.2 561.3,258" stroke-width="1.2"/>
+<path class="fil" d="M549.7,243.7 Q562.6,240.2 575.6,264.1" stroke-width="1.5"/>
+<path class="fil" d="M200.3,251.2 Q191.6,240.8 182.9,250.5" stroke-width="1.2"/>
+<path class="fil" d="M402.5,260.7 Q421.6,254.6 440.7,274.2" stroke-width="1.4"/>
+<path class="fil" d="M402.5,260.7 Q420.9,256.6 439.3,280.5" stroke-width="1.8"/>
+<path class="fil" d="M421.8,111.5 Q413.7,92.2 405.6,96.2" stroke-width="1.4"/>
+<path class="fil" d="M421.8,111.5 Q432,111.9 442.1,143.3" stroke-width="1.3"/>
+<path class="fil" d="M421.8,111.5 Q441.4,111.7 460.9,141.7" stroke-width="0.6"/>
+<path class="fil" d="M214.5,215.2 Q217.9,199.2 221.3,204.9" stroke-width="1.6"/>
+<path class="fil" d="M214.5,215.2 Q222.6,203.5 230.8,215.6" stroke-width="1.5"/>
+<path class="fil" d="M347.2,203.5 Q346.5,199.7 345.8,222.5" stroke-width="1.6"/>
+<path class="fil" d="M284.1,189 Q293.5,178.2 302.9,189.9" stroke-width="0.7"/>
+<path class="fil" d="M284.1,189 Q266.1,171.3 248,180.3" stroke-width="1.1"/>
+<path class="fil" d="M284.1,189 Q269.7,185.7 255.3,209.2" stroke-width="1"/>
+<path class="fil" d="M345.8,222.5 Q332.7,215 319.6,235.6" stroke-width="0.5"/>
+<path class="fil" d="M496.3,215 Q494.9,203.7 493.5,212.9" stroke-width="0.4"/>
+<path class="fil" d="M496.3,215 Q488,209.8 479.7,228.7" stroke-width="0.5"/>
+<path class="fil" d="M230.8,215.6 Q226.1,198.6 221.3,204.9" stroke-width="0.5"/>
+<path class="fil" d="M248,180.3 Q252.8,158.4 257.7,162.4" stroke-width="1.3"/>
+<path class="fil" d="M248,180.3 Q247.2,162 246.4,165.4" stroke-width="1.9"/>
+<path class="fil" d="M248,180.3 Q248.6,154.3 249.2,155.5" stroke-width="1.1"/>
+<path class="fil" d="M504,260.4 Q490,256.7 476,279.7" stroke-width="1"/>
+<path class="fil" d="M430.8,188.3 Q416,178.8 401.2,193.3" stroke-width="1.9"/>
+<path class="fil" d="M430.8,188.3 Q439,167.5 447.1,172.2" stroke-width="1.1"/>
+<path class="fil" d="M479.7,228.7 Q486.6,209.5 493.5,212.9" stroke-width="1.8"/>
+<path class="fil" d="M439.3,280.5 Q440,266.8 440.7,274.2" stroke-width="1.6"/>
+<path class="fil" d="M439.3,280.5 Q452.4,268.4 465.4,278.6" stroke-width="1"/>
+<path class="fil" d="M301.9,129.8 Q287.7,121.1 273.5,137" stroke-width="0.6"/>
+<path class="fil" d="M257.7,162.4 Q252,152.3 246.4,165.4" stroke-width="1.4"/>
+<path class="fil" d="M257.7,162.4 Q253.4,148.6 249.2,155.5" stroke-width="1.2"/>
+<path class="fil" d="M250.4,283.8 Q240.8,248.3 231.2,245.9" stroke-width="1"/>
+<path class="fil" d="M575.6,264.1 Q568.5,250 561.3,258" stroke-width="0.6"/>
+<path class="fil" d="M575.6,264.1 Q566.9,241 558.2,243.4" stroke-width="0.9"/>
+<path class="fil" d="M246.4,165.4 Q247.8,149.4 249.2,155.5" stroke-width="1.2"/>
+<path class="fil" d="M316.1,320.5 Q331.5,305.1 346.9,312.9" stroke-width="1.2"/>
+<path class="fil" d="M166.6,217.7 Q179.2,212.6 191.8,232.2" stroke-width="1.1"/>
+<path class="fil" d="M166.6,217.7 Q182.6,195.4 198.6,198.7" stroke-width="1.4"/>
+<path class="fil" d="M166.6,217.7 Q190.5,202.4 214.5,215.2" stroke-width="1.4"/>
+<path class="fil" d="M352,179.9 Q350,167.4 348.1,174.7" stroke-width="0.8"/>
+<path class="fil" d="M352,179.9 Q349.6,177.7 347.2,203.5" stroke-width="1.2"/>
+<path class="fil" d="M474,305.5 Q473.2,291.1 472.5,299" stroke-width="1.2"/>
+<path class="fil" d="M474,305.5 Q461.1,282.3 448.3,284.5" stroke-width="1.4"/>
+<path class="fil" d="M369.3,294.6 Q355.6,286.5 341.9,300.6" stroke-width="1.5"/>
+<path class="fil" d="M472.5,299 Q460.4,279 448.3,284.5" stroke-width="1.5"/>
+<path class="fil" d="M472.5,299 Q474.3,277.4 476,279.7" stroke-width="1.6"/>
+<path class="fil" d="M390.8,333.3 Q402,322.9 413.1,335.1" stroke-width="1.6"/>
+<path class="fil" d="M390.8,333.3 Q401.2,318.9 411.5,326.3" stroke-width="0.8"/>
+<path class="fil" d="M390.8,333.3 Q385.1,310.8 379.4,313.1" stroke-width="0.5"/>
+<path class="fil" d="M273.5,137 Q261.4,133.9 249.2,155.5" stroke-width="1.5"/>
+<path class="fil" d="M413.1,335.1 Q412.3,320.6 411.5,326.3" stroke-width="1.4"/>
+<path class="fil" d="M636.1,221.5 Q614.1,216.2 592.2,241.5" stroke-width="1.3"/>
+<path class="fil" d="M302.9,189.9 Q325,183.1 347.2,203.5" stroke-width="0.9"/>
+<path class="fil" d="M302.9,189.9 Q327.4,170.5 352,179.9" stroke-width="1.5"/>
+<path class="fil" d="M319.6,235.6 Q312.4,234.2 305.2,258.8" stroke-width="0.5"/>
+<path class="fil" d="M476,279.7 Q462.2,269 448.3,284.5" stroke-width="1.8"/>
+<path class="fil" d="M348.1,174.7 Q359.4,171 370.7,193.5" stroke-width="0.6"/>
+<path class="fil" d="M348.1,174.7 Q325.5,167.2 302.9,189.9" stroke-width="1.6"/>
+<path class="fil" d="M346.9,312.9 Q344.4,295.4 341.9,300.6" stroke-width="1.9"/>
+<path class="fil" d="M346.9,312.9 Q354.5,293.7 362,298.7" stroke-width="1.7"/>
+<path class="fil-strong" d="M352,179.9 Q391.4,167.3 430.8,188.3" stroke-width="3.4"/>
+<path class="fil-strong" d="M430.8,188.3 Q476.7,187.3 522.6,227.8" stroke-width="3"/>
+<line class="stem" x1="405.6" y1="101.3" x2="405.6" y2="96.2"/>
+<ellipse class="soma" cx="405.6" cy="96.2" rx="3.6" ry="2.8"/>
+<line class="stem" x1="421.8" y1="115.5" x2="421.8" y2="111.5"/>
+<ellipse class="soma" cx="421.8" cy="111.5" rx="3.6" ry="2.8"/>
+<line class="stem" x1="316.4" y1="135.7" x2="316.4" y2="126.9"/>
+<ellipse class="soma" cx="316.4" cy="126.9" rx="3.6" ry="2.8"/>
+<line class="stem" x1="301.9" y1="136.8" x2="301.9" y2="129.8"/>
+<ellipse class="soma" cx="301.9" cy="129.8" rx="3.6" ry="2.8"/>
+<line class="stem" x1="273.5" y1="145.9" x2="273.5" y2="137"/>
+<ellipse class="soma" cx="273.5" cy="137" rx="3.6" ry="2.8"/>
+<line class="stem" x1="460.9" y1="146.1" x2="460.9" y2="141.7"/>
+<ellipse class="soma" cx="460.9" cy="141.7" rx="3.6" ry="2.8"/>
+<line class="stem" x1="360.1" y1="148.8" x2="360.1" y2="139.3"/>
+<ellipse class="soma" cx="360.1" cy="139.3" rx="3.6" ry="2.8"/>
+<line class="stem" x1="442.1" y1="149.6" x2="442.1" y2="143.3"/>
+<ellipse class="soma" cx="442.1" cy="143.3" rx="3.6" ry="2.8"/>
+<line class="stem" x1="249.2" y1="163.9" x2="249.2" y2="155.5"/>
+<ellipse class="soma" cx="249.2" cy="155.5" rx="3.6" ry="2.8"/>
+<line class="stem" x1="462.7" y1="166.4" x2="462.7" y2="157.1"/>
+<ellipse class="soma" cx="462.7" cy="157.1" rx="3.6" ry="2.8"/>
+<line class="stem" x1="418.6" y1="167.9" x2="418.6" y2="158.7"/>
+<ellipse class="soma" cx="418.6" cy="158.7" rx="3.6" ry="2.8"/>
+<line class="stem" x1="471.6" y1="168.9" x2="471.6" y2="164.2"/>
+<ellipse class="soma" cx="471.6" cy="164.2" rx="3.6" ry="2.8"/>
+<line class="stem" x1="482.4" y1="170.2" x2="482.4" y2="161.8"/>
+<ellipse class="soma" cx="482.4" cy="161.8" rx="3.6" ry="2.8"/>
+<line class="stem" x1="246.4" y1="170.5" x2="246.4" y2="165.4"/>
+<ellipse class="soma" cx="246.4" cy="165.4" rx="3.6" ry="2.8"/>
+<line class="stem" x1="257.7" y1="171.7" x2="257.7" y2="162.4"/>
+<ellipse class="soma" cx="257.7" cy="162.4" rx="3.6" ry="2.8"/>
+<line class="stem" x1="447.1" y1="176.2" x2="447.1" y2="172.2"/>
+<ellipse class="soma" cx="447.1" cy="172.2" rx="3.6" ry="2.8"/>
+<line class="stem" x1="348.1" y1="180.9" x2="348.1" y2="174.7"/>
+<ellipse class="soma" cx="348.1" cy="174.7" rx="3.6" ry="2.8"/>
+<line class="stem" x1="513.8" y1="183.6" x2="513.8" y2="175.2"/>
+<ellipse class="soma" cx="513.8" cy="175.2" rx="3.6" ry="2.8"/>
+<line class="stem" x1="248" y1="185.1" x2="248" y2="180.3"/>
+<ellipse class="soma" cx="248" cy="180.3" rx="3.6" ry="2.8"/>
+<line class="stem" x1="352" y1="187.2" x2="352" y2="179.9"/>
+<ellipse class="soma" cx="352" cy="179.9" rx="3.6" ry="2.8"/>
+<line class="stem" x1="425.2" y1="190.8" x2="425.2" y2="183.7"/>
+<ellipse class="soma" cx="425.2" cy="183.7" rx="3.6" ry="2.8"/>
+<line class="stem" x1="430.8" y1="194.3" x2="430.8" y2="188.3"/>
+<ellipse class="soma" cx="430.8" cy="188.3" rx="3.6" ry="2.8"/>
+<line class="stem" x1="284.1" y1="195.9" x2="284.1" y2="189"/>
+<ellipse class="soma" cx="284.1" cy="189" rx="3.6" ry="2.8"/>
+<line class="stem" x1="401.2" y1="197.8" x2="401.2" y2="193.3"/>
+<ellipse class="soma" cx="401.2" cy="193.3" rx="3.6" ry="2.8"/>
+<line class="stem" x1="302.9" y1="199" x2="302.9" y2="189.9"/>
+<ellipse class="soma" cx="302.9" cy="189.9" rx="3.6" ry="2.8"/>
+<line class="stem" x1="370.7" y1="201.3" x2="370.7" y2="193.5"/>
+<ellipse class="soma" cx="370.7" cy="193.5" rx="3.6" ry="2.8"/>
+<line class="stem" x1="198.6" y1="205.2" x2="198.6" y2="198.7"/>
+<ellipse class="soma" cx="198.6" cy="198.7" rx="3.6" ry="2.8"/>
+<line class="stem" x1="221.3" y1="211.3" x2="221.3" y2="204.9"/>
+<ellipse class="soma" cx="221.3" cy="204.9" rx="3.6" ry="2.8"/>
+<line class="stem" x1="347.2" y1="213.4" x2="347.2" y2="203.5"/>
+<ellipse class="soma" cx="347.2" cy="203.5" rx="3.6" ry="2.8"/>
+<line class="stem" x1="493.5" y1="217.2" x2="493.5" y2="212.9"/>
+<ellipse class="soma" cx="493.5" cy="212.9" rx="3.6" ry="2.8"/>
+<line class="stem" x1="255.3" y1="217.3" x2="255.3" y2="209.2"/>
+<ellipse class="soma" cx="255.3" cy="209.2" rx="3.6" ry="2.8"/>
+<line class="stem" x1="214.5" y1="219.7" x2="214.5" y2="215.2"/>
+<ellipse class="soma" cx="214.5" cy="215.2" rx="3.6" ry="2.8"/>
+<line class="stem" x1="496.3" y1="221.6" x2="496.3" y2="215"/>
+<ellipse class="soma" cx="496.3" cy="215" rx="3.6" ry="2.8"/>
+<line class="stem" x1="230.8" y1="224" x2="230.8" y2="215.6"/>
+<ellipse class="soma" cx="230.8" cy="215.6" rx="3.6" ry="2.8"/>
+<line class="stem" x1="166.6" y1="224.3" x2="166.6" y2="217.7"/>
+<ellipse class="soma" cx="166.6" cy="217.7" rx="3.6" ry="2.8"/>
+<line class="stem" x1="442.5" y1="226.4" x2="442.5" y2="220.6"/>
+<ellipse class="soma" cx="442.5" cy="220.6" rx="3.6" ry="2.8"/>
+<line class="stem" x1="345.8" y1="226.8" x2="345.8" y2="222.5"/>
+<ellipse class="soma" cx="345.8" cy="222.5" rx="3.6" ry="2.8"/>
+<line class="stem" x1="524.4" y1="230.5" x2="524.4" y2="223.6"/>
+<ellipse class="soma" cx="524.4" cy="223.6" rx="3.6" ry="2.8"/>
+<line class="stem" x1="636.1" y1="231.3" x2="636.1" y2="221.5"/>
+<ellipse class="soma" cx="636.1" cy="221.5" rx="3.6" ry="2.8"/>
+<line class="stem" x1="610.7" y1="231.4" x2="610.7" y2="222.4"/>
+<ellipse class="soma" cx="610.7" cy="222.4" rx="3.6" ry="2.8"/>
+<line class="stem" x1="479.7" y1="232.7" x2="479.7" y2="228.7"/>
+<ellipse class="soma" cx="479.7" cy="228.7" rx="3.6" ry="2.8"/>
+<line class="stem" x1="354.8" y1="235" x2="354.8" y2="227.4"/>
+<ellipse class="soma" cx="354.8" cy="227.4" rx="3.6" ry="2.8"/>
+<line class="stem" x1="522.6" y1="235.8" x2="522.6" y2="227.8"/>
+<ellipse class="soma" cx="522.6" cy="227.8" rx="3.6" ry="2.8"/>
+<line class="stem" x1="191.8" y1="239.9" x2="191.8" y2="232.2"/>
+<ellipse class="soma" cx="191.8" cy="232.2" rx="3.6" ry="2.8"/>
+<line class="stem" x1="319.6" y1="243.9" x2="319.6" y2="235.6"/>
+<ellipse class="soma" cx="319.6" cy="235.6" rx="3.6" ry="2.8"/>
+<line class="stem" x1="405" y1="247.3" x2="405" y2="242.3"/>
+<ellipse class="soma" cx="405" cy="242.3" rx="3.6" ry="2.8"/>
+<line class="stem" x1="592.2" y1="247.4" x2="592.2" y2="241.5"/>
+<ellipse class="soma" cx="592.2" cy="241.5" rx="3.6" ry="2.8"/>
+<line class="stem" x1="558.2" y1="249" x2="558.2" y2="243.4"/>
+<ellipse class="soma" cx="558.2" cy="243.4" rx="3.6" ry="2.8"/>
+<line class="stem" x1="606" y1="250.8" x2="606" y2="244.1"/>
+<ellipse class="soma" cx="606" cy="244.1" rx="3.6" ry="2.8"/>
+<line class="stem" x1="549.7" y1="253.5" x2="549.7" y2="243.7"/>
+<ellipse class="soma" cx="549.7" cy="243.7" rx="3.6" ry="2.8"/>
+<line class="stem" x1="231.2" y1="254.7" x2="231.2" y2="245.9"/>
+<ellipse class="soma" cx="231.2" cy="245.9" rx="3.6" ry="2.8"/>
+<line class="stem" x1="202.6" y1="258.1" x2="202.6" y2="250.5"/>
+<ellipse class="soma" cx="202.6" cy="250.5" rx="3.6" ry="2.8"/>
+<line class="stem" x1="182.9" y1="259.2" x2="182.9" y2="250.5"/>
+<ellipse class="soma" cx="182.9" cy="250.5" rx="3.6" ry="2.8"/>
+<line class="stem" x1="200.3" y1="260.1" x2="200.3" y2="251.2"/>
+<ellipse class="soma" cx="200.3" cy="251.2" rx="3.6" ry="2.8"/>
+<line class="stem" x1="469.1" y1="261.4" x2="469.1" y2="255.5"/>
+<ellipse class="soma" cx="469.1" cy="255.5" rx="3.6" ry="2.8"/>
+<line class="stem" x1="561.3" y1="262.8" x2="561.3" y2="258"/>
+<ellipse class="soma" cx="561.3" cy="258" rx="3.6" ry="2.8"/>
+<line class="stem" x1="505.2" y1="264.2" x2="505.2" y2="259.2"/>
+<ellipse class="soma" cx="505.2" cy="259.2" rx="3.6" ry="2.8"/>
+<line class="stem" x1="402.5" y1="266.9" x2="402.5" y2="260.7"/>
+<ellipse class="soma" cx="402.5" cy="260.7" rx="3.6" ry="2.8"/>
+<line class="stem" x1="305.2" y1="267.9" x2="305.2" y2="258.8"/>
+<ellipse class="soma" cx="305.2" cy="258.8" rx="3.6" ry="2.8"/>
+<line class="stem" x1="504" y1="268.1" x2="504" y2="260.4"/>
+<ellipse class="soma" cx="504" cy="260.4" rx="3.6" ry="2.8"/>
+<line class="stem" x1="327.6" y1="269" x2="327.6" y2="263.2"/>
+<ellipse class="soma" cx="327.6" cy="263.2" rx="3.6" ry="2.8"/>
+<line class="stem" x1="575.6" y1="270.6" x2="575.6" y2="264.1"/>
+<ellipse class="soma" cx="575.6" cy="264.1" rx="3.6" ry="2.8"/>
+<line class="stem" x1="327.7" y1="278.3" x2="327.7" y2="269"/>
+<ellipse class="soma" cx="327.7" cy="269" rx="3.6" ry="2.8"/>
+<line class="stem" x1="440.7" y1="279.9" x2="440.7" y2="274.2"/>
+<ellipse class="soma" cx="440.7" cy="274.2" rx="3.6" ry="2.8"/>
+<line class="stem" x1="280.6" y1="284.5" x2="280.6" y2="278.4"/>
+<ellipse class="soma" cx="280.6" cy="278.4" rx="3.6" ry="2.8"/>
+<line class="stem" x1="476" y1="285.2" x2="476" y2="279.7"/>
+<ellipse class="soma" cx="476" cy="279.7" rx="3.6" ry="2.8"/>
+<line class="stem" x1="465.4" y1="285.4" x2="465.4" y2="278.6"/>
+<ellipse class="soma" cx="465.4" cy="278.6" rx="3.6" ry="2.8"/>
+<line class="stem" x1="250.4" y1="287.8" x2="250.4" y2="283.8"/>
+<ellipse class="soma" cx="250.4" cy="283.8" rx="3.6" ry="2.8"/>
+<line class="stem" x1="439.3" y1="288.1" x2="439.3" y2="280.5"/>
+<ellipse class="soma" cx="439.3" cy="280.5" rx="3.6" ry="2.8"/>
+<line class="stem" x1="217.8" y1="292" x2="217.8" y2="285.2"/>
+<ellipse class="soma" cx="217.8" cy="285.2" rx="3.6" ry="2.8"/>
+<line class="stem" x1="448.3" y1="293.5" x2="448.3" y2="284.5"/>
+<ellipse class="soma" cx="448.3" cy="284.5" rx="3.6" ry="2.8"/>
+<line class="stem" x1="340.2" y1="294.9" x2="340.2" y2="290.4"/>
+<ellipse class="soma" cx="340.2" cy="290.4" rx="3.6" ry="2.8"/>
+<line class="stem" x1="369.3" y1="299.5" x2="369.3" y2="294.6"/>
+<ellipse class="soma" cx="369.3" cy="294.6" rx="3.6" ry="2.8"/>
+<line class="stem" x1="362" y1="303.6" x2="362" y2="298.7"/>
+<ellipse class="soma" cx="362" cy="298.7" rx="3.6" ry="2.8"/>
+<line class="stem" x1="472.5" y1="305.1" x2="472.5" y2="299"/>
+<ellipse class="soma" cx="472.5" cy="299" rx="3.6" ry="2.8"/>
+<line class="stem" x1="341.9" y1="305.6" x2="341.9" y2="300.6"/>
+<ellipse class="soma" cx="341.9" cy="300.6" rx="3.6" ry="2.8"/>
+<line class="stem" x1="474" y1="314.3" x2="474" y2="305.5"/>
+<ellipse class="soma" cx="474" cy="305.5" rx="3.6" ry="2.8"/>
+<line class="stem" x1="295.7" y1="315.7" x2="295.7" y2="310.2"/>
+<ellipse class="soma" cx="295.7" cy="310.2" rx="3.6" ry="2.8"/>
+<line class="stem" x1="346.9" y1="319.3" x2="346.9" y2="312.9"/>
+<ellipse class="soma" cx="346.9" cy="312.9" rx="3.6" ry="2.8"/>
+<line class="stem" x1="379.4" y1="319.6" x2="379.4" y2="313.1"/>
+<ellipse class="soma" cx="379.4" cy="313.1" rx="3.6" ry="2.8"/>
+<line class="stem" x1="316.1" y1="327.1" x2="316.1" y2="320.5"/>
+<ellipse class="soma" cx="316.1" cy="320.5" rx="3.6" ry="2.8"/>
+<line class="stem" x1="411.5" y1="333.1" x2="411.5" y2="326.3"/>
+<ellipse class="soma" cx="411.5" cy="326.3" rx="3.6" ry="2.8"/>
+<line class="stem" x1="441.7" y1="335.9" x2="441.7" y2="330.7"/>
+<ellipse class="soma" cx="441.7" cy="330.7" rx="3.6" ry="2.8"/>
+<line class="stem" x1="390.8" y1="340.6" x2="390.8" y2="333.3"/>
+<ellipse class="soma" cx="390.8" cy="333.3" rx="3.6" ry="2.8"/>
+<line class="stem" x1="413.1" y1="340.8" x2="413.1" y2="335.1"/>
+<ellipse class="soma" cx="413.1" cy="335.1" rx="3.6" ry="2.8"/>
+<line class="stem" x1="334.9" y1="347.8" x2="334.9" y2="341.9"/>
+<ellipse class="soma" cx="334.9" cy="341.9" rx="3.6" ry="2.8"/>
+<line class="stem" x1="350.2" y1="362" x2="350.2" y2="354.3"/>
+<ellipse class="soma" cx="350.2" cy="354.3" rx="3.6" ry="2.8"/>
+<line class="stem" x1="402.1" y1="372.6" x2="402.1" y2="367.4"/>
+<ellipse class="soma" cx="402.1" cy="367.4" rx="3.6" ry="2.8"/>
+<line class="stem" x1="388.6" y1="377.3" x2="388.6" y2="373.1"/>
+<ellipse class="soma" cx="388.6" cy="373.1" rx="3.6" ry="2.8"/>
+<line class="stem" x1="382.9" y1="380.2" x2="382.9" y2="373.1"/>
+<ellipse class="soma" cx="382.9" cy="373.1" rx="3.6" ry="2.8"/>
+<line class="leader" x1="477.2" y1="175.6" x2="507.2" y2="151.6"/>
+<text class="t-sm " x="511.2" y="155.6" text-anchor="start">zona espejo de la cancha</text>
+<line class="leader" x1="614.3" y1="238.3" x2="654.3" y2="228.3"/>
+<text class="t-sm " x="658.3" y="232.3" text-anchor="start">zona motora: sube</text>
+<line class="leader" x1="385.7" y1="370.3" x2="425.7" y2="380.3"/>
+<text class="t-sm " x="429.7" y="384.3" text-anchor="start">zona motora: baja</text>
+<line class="leader" x1="352" y1="179.9" x2="292" y2="119.9"/>
+<text class="t-sm acc" x="288" y="123.9" text-anchor="end">neurona sobre el electrodo de la pelota</text>
+<line class="leader" x1="522.6" y1="221.2" x2="552.6" y2="151.2"/>
+<text class="t-sm acc" x="556.6" y="155.2" text-anchor="start">filamento reforzado (grueso)</text>
+<line class="leader" x1="327.6" y1="263.2" x2="277.6" y2="303.2"/>
+<text class="t-sm " x="273.6" y="307.2" text-anchor="end">filamentos comunes</text></svg></div>
+      <figcaption>En la versión real se puede girar y acercar. Las neuronas están donde cayeron, no ordenadas. Los filamentos se arquean de una a otra.</figcaption>
+    </figure>
+    <div class="body">
+      <p><strong>Las zonas son lugares del chip, no grupos de neuronas.</strong> Una neurona es "sensorial" solo porque cayó arriba de la zona espejo, y "motora" porque cayó en una zona que se escucha. Las demás quedan en el medio y sirven de puente.</p>
+      <p>El camino rojo es lo que esperamos ver después de aprender: desde la neurona que recibe la pelota, a través de otras, hasta la zona que hace subir la paleta.</p>
+    </div>
+  </section>
+
+  <section class="fig">
+    <div class="fig-head"><span class="step">3</span><h2>Primero crece la red</h2></div>
+    <figure>
+      <div class="svg-scroll"><svg viewBox="0 0 760 230" role="img" aria-label="Cuatro cuadros del crecimiento: día 0 las neuronas sueltas, día 3 filamentos cortos, día 10 conectadas con sus vecinas, día 21 una red densa."><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker><marker id="ah-acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-acc"/></marker></defs><polygon class="chip-side" points="177.3,81.5 95,129 95,132.3 177.3,84.8"/>
+<polygon class="chip-side2" points="95,129 12.7,81.5 12.7,84.8 95,132.3"/>
+<polygon class="chip" points="95,34 177.3,81.5 95,129 12.7,81.5"/>
+<line class="stem" x1="102.4" y1="43" x2="102.4" y2="41.5"/>
+<ellipse class="soma" cx="102.4" cy="41.5" rx="1.2" ry="1"/>
+<line class="stem" x1="107" y1="47.1" x2="107" y2="45.9"/>
+<ellipse class="soma" cx="107" cy="45.9" rx="1.2" ry="1"/>
+<line class="stem" x1="76.7" y1="52.9" x2="76.7" y2="50.4"/>
+<ellipse class="soma" cx="76.7" cy="50.4" rx="1.2" ry="1"/>
+<line class="stem" x1="72.5" y1="53.2" x2="72.5" y2="51.2"/>
+<ellipse class="soma" cx="72.5" cy="51.2" rx="1.2" ry="1"/>
+<line class="stem" x1="64.3" y1="55.9" x2="64.3" y2="53.3"/>
+<ellipse class="soma" cx="64.3" cy="53.3" rx="1.2" ry="1"/>
+<line class="stem" x1="118.3" y1="55.9" x2="118.3" y2="54.6"/>
+<ellipse class="soma" cx="118.3" cy="54.6" rx="1.2" ry="1"/>
+<line class="stem" x1="89.3" y1="56.7" x2="89.3" y2="54"/>
+<ellipse class="soma" cx="89.3" cy="54" rx="1.2" ry="1"/>
+<line class="stem" x1="112.9" y1="56.9" x2="112.9" y2="55.1"/>
+<ellipse class="soma" cx="112.9" cy="55.1" rx="1.2" ry="1"/>
+<line class="stem" x1="57.4" y1="61" x2="57.4" y2="58.6"/>
+<ellipse class="soma" cx="57.4" cy="58.6" rx="1.2" ry="1"/>
+<line class="stem" x1="118.8" y1="61.8" x2="118.8" y2="59.1"/>
+<ellipse class="soma" cx="118.8" cy="59.1" rx="1.2" ry="1"/>
+<line class="stem" x1="106.1" y1="62.2" x2="106.1" y2="59.5"/>
+<ellipse class="soma" cx="106.1" cy="59.5" rx="1.2" ry="1"/>
+<line class="stem" x1="121.4" y1="62.5" x2="121.4" y2="61.1"/>
+<ellipse class="soma" cx="121.4" cy="61.1" rx="1.2" ry="1"/>
+<line class="stem" x1="124.5" y1="62.9" x2="124.5" y2="60.4"/>
+<ellipse class="soma" cx="124.5" cy="60.4" rx="1.2" ry="1"/>
+<line class="stem" x1="56.5" y1="62.9" x2="56.5" y2="61.5"/>
+<ellipse class="soma" cx="56.5" cy="61.5" rx="1.2" ry="1"/>
+<line class="stem" x1="59.8" y1="63.3" x2="59.8" y2="60.6"/>
+<ellipse class="soma" cx="59.8" cy="60.6" rx="1.2" ry="1"/>
+<line class="stem" x1="114.3" y1="64.6" x2="114.3" y2="63.4"/>
+<ellipse class="soma" cx="114.3" cy="63.4" rx="1.2" ry="1"/>
+<line class="stem" x1="85.8" y1="65.9" x2="85.8" y2="64.1"/>
+<ellipse class="soma" cx="85.8" cy="64.1" rx="1.2" ry="1"/>
+<line class="stem" x1="133.5" y1="66.7" x2="133.5" y2="64.3"/>
+<ellipse class="soma" cx="133.5" cy="64.3" rx="1.2" ry="1"/>
+<line class="stem" x1="57" y1="67.1" x2="57" y2="65.7"/>
+<ellipse class="soma" cx="57" cy="65.7" rx="1.2" ry="1"/>
+<line class="stem" x1="86.9" y1="67.7" x2="86.9" y2="65.6"/>
+<ellipse class="soma" cx="86.9" cy="65.6" rx="1.2" ry="1"/>
+<line class="stem" x1="108" y1="68.8" x2="108" y2="66.7"/>
+<ellipse class="soma" cx="108" cy="66.7" rx="1.2" ry="1"/>
+<line class="stem" x1="109.6" y1="69.8" x2="109.6" y2="68"/>
+<ellipse class="soma" cx="109.6" cy="68" rx="1.2" ry="1"/>
+<line class="stem" x1="67.4" y1="70.3" x2="67.4" y2="68.3"/>
+<ellipse class="soma" cx="67.4" cy="68.3" rx="1.2" ry="1"/>
+<line class="stem" x1="101.1" y1="70.8" x2="101.1" y2="69.5"/>
+<ellipse class="soma" cx="101.1" cy="69.5" rx="1.2" ry="1"/>
+<line class="stem" x1="72.8" y1="71.1" x2="72.8" y2="68.5"/>
+<ellipse class="soma" cx="72.8" cy="68.5" rx="1.2" ry="1"/>
+<line class="stem" x1="92.3" y1="71.8" x2="92.3" y2="69.6"/>
+<ellipse class="soma" cx="92.3" cy="69.6" rx="1.2" ry="1"/>
+<line class="stem" x1="42.8" y1="72.9" x2="42.8" y2="71"/>
+<ellipse class="soma" cx="42.8" cy="71" rx="1.2" ry="1"/>
+<line class="stem" x1="49.3" y1="74.7" x2="49.3" y2="72.8"/>
+<ellipse class="soma" cx="49.3" cy="72.8" rx="1.2" ry="1"/>
+<line class="stem" x1="85.5" y1="75.3" x2="85.5" y2="72.4"/>
+<ellipse class="soma" cx="85.5" cy="72.4" rx="1.2" ry="1"/>
+<line class="stem" x1="127.7" y1="76.4" x2="127.7" y2="75.1"/>
+<ellipse class="soma" cx="127.7" cy="75.1" rx="1.2" ry="1"/>
+<line class="stem" x1="59.1" y1="76.4" x2="59.1" y2="74.1"/>
+<ellipse class="soma" cx="59.1" cy="74.1" rx="1.2" ry="1"/>
+<line class="stem" x1="47.4" y1="77.1" x2="47.4" y2="75.8"/>
+<ellipse class="soma" cx="47.4" cy="75.8" rx="1.2" ry="1"/>
+<line class="stem" x1="128.5" y1="77.6" x2="128.5" y2="75.7"/>
+<ellipse class="soma" cx="128.5" cy="75.7" rx="1.2" ry="1"/>
+<line class="stem" x1="52" y1="78.3" x2="52" y2="75.9"/>
+<ellipse class="soma" cx="52" cy="75.9" rx="1.2" ry="1"/>
+<line class="stem" x1="33.6" y1="78.4" x2="33.6" y2="76.5"/>
+<ellipse class="soma" cx="33.6" cy="76.5" rx="1.2" ry="1"/>
+<line class="stem" x1="113" y1="79" x2="113" y2="77.3"/>
+<ellipse class="soma" cx="113" cy="77.3" rx="1.2" ry="1"/>
+<line class="stem" x1="85.1" y1="79.1" x2="85.1" y2="77.9"/>
+<ellipse class="soma" cx="85.1" cy="77.9" rx="1.2" ry="1"/>
+<line class="stem" x1="136.6" y1="80.2" x2="136.6" y2="78.2"/>
+<ellipse class="soma" cx="136.6" cy="78.2" rx="1.2" ry="1"/>
+<line class="stem" x1="168.7" y1="80.4" x2="168.7" y2="77.6"/>
+<ellipse class="soma" cx="168.7" cy="77.6" rx="1.2" ry="1"/>
+<line class="stem" x1="161.4" y1="80.5" x2="161.4" y2="77.9"/>
+<ellipse class="soma" cx="161.4" cy="77.9" rx="1.2" ry="1"/>
+<line class="stem" x1="123.7" y1="80.8" x2="123.7" y2="79.7"/>
+<ellipse class="soma" cx="123.7" cy="79.7" rx="1.2" ry="1"/>
+<line class="stem" x1="87.7" y1="81.5" x2="87.7" y2="79.3"/>
+<ellipse class="soma" cx="87.7" cy="79.3" rx="1.2" ry="1"/>
+<line class="stem" x1="136" y1="81.7" x2="136" y2="79.4"/>
+<ellipse class="soma" cx="136" cy="79.4" rx="1.2" ry="1"/>
+<line class="stem" x1="40.8" y1="82.9" x2="40.8" y2="80.7"/>
+<ellipse class="soma" cx="40.8" cy="80.7" rx="1.2" ry="1"/>
+<line class="stem" x1="77.6" y1="84" x2="77.6" y2="81.7"/>
+<ellipse class="soma" cx="77.6" cy="81.7" rx="1.2" ry="1"/>
+<line class="stem" x1="102.2" y1="85" x2="102.2" y2="83.6"/>
+<ellipse class="soma" cx="102.2" cy="83.6" rx="1.2" ry="1"/>
+<line class="stem" x1="156.1" y1="85.1" x2="156.1" y2="83.4"/>
+<ellipse class="soma" cx="156.1" cy="83.4" rx="1.2" ry="1"/>
+<line class="stem" x1="146.3" y1="85.5" x2="146.3" y2="83.9"/>
+<ellipse class="soma" cx="146.3" cy="83.9" rx="1.2" ry="1"/>
+<line class="stem" x1="160.1" y1="86" x2="160.1" y2="84.1"/>
+<ellipse class="soma" cx="160.1" cy="84.1" rx="1.2" ry="1"/>
+<line class="stem" x1="143.8" y1="86.8" x2="143.8" y2="84"/>
+<ellipse class="soma" cx="143.8" cy="84" rx="1.2" ry="1"/>
+<line class="stem" x1="52.2" y1="87.2" x2="52.2" y2="84.6"/>
+<ellipse class="soma" cx="52.2" cy="84.6" rx="1.2" ry="1"/>
+<line class="stem" x1="43.9" y1="88.2" x2="43.9" y2="86"/>
+<ellipse class="soma" cx="43.9" cy="86" rx="1.2" ry="1"/>
+<line class="stem" x1="38.3" y1="88.5" x2="38.3" y2="86"/>
+<ellipse class="soma" cx="38.3" cy="86" rx="1.2" ry="1"/>
+<line class="stem" x1="43.3" y1="88.7" x2="43.3" y2="86.2"/>
+<ellipse class="soma" cx="43.3" cy="86.2" rx="1.2" ry="1"/>
+<line class="stem" x1="120.7" y1="89.1" x2="120.7" y2="87.4"/>
+<ellipse class="soma" cx="120.7" cy="87.4" rx="1.2" ry="1"/>
+<line class="stem" x1="147.2" y1="89.5" x2="147.2" y2="88.1"/>
+<ellipse class="soma" cx="147.2" cy="88.1" rx="1.2" ry="1"/>
+<line class="stem" x1="131" y1="89.9" x2="131" y2="88.5"/>
+<ellipse class="soma" cx="131" cy="88.5" rx="1.2" ry="1"/>
+<line class="stem" x1="101.5" y1="90.7" x2="101.5" y2="88.9"/>
+<ellipse class="soma" cx="101.5" cy="88.9" rx="1.2" ry="1"/>
+<line class="stem" x1="73.5" y1="91" x2="73.5" y2="88.3"/>
+<ellipse class="soma" cx="73.5" cy="88.3" rx="1.2" ry="1"/>
+<line class="stem" x1="130.7" y1="91" x2="130.7" y2="88.8"/>
+<ellipse class="soma" cx="130.7" cy="88.8" rx="1.2" ry="1"/>
+<line class="stem" x1="79.9" y1="91.3" x2="79.9" y2="89.6"/>
+<ellipse class="soma" cx="79.9" cy="89.6" rx="1.2" ry="1"/>
+<line class="stem" x1="151.3" y1="91.7" x2="151.3" y2="89.9"/>
+<ellipse class="soma" cx="151.3" cy="89.9" rx="1.2" ry="1"/>
+<line class="stem" x1="79.9" y1="94" x2="79.9" y2="91.3"/>
+<ellipse class="soma" cx="79.9" cy="91.3" rx="1.2" ry="1"/>
+<line class="stem" x1="112.5" y1="94.4" x2="112.5" y2="92.8"/>
+<ellipse class="soma" cx="112.5" cy="92.8" rx="1.2" ry="1"/>
+<line class="stem" x1="66.4" y1="95.8" x2="66.4" y2="94"/>
+<ellipse class="soma" cx="66.4" cy="94" rx="1.2" ry="1"/>
+<line class="stem" x1="122.6" y1="96" x2="122.6" y2="94.4"/>
+<ellipse class="soma" cx="122.6" cy="94.4" rx="1.2" ry="1"/>
+<line class="stem" x1="119.6" y1="96" x2="119.6" y2="94.1"/>
+<ellipse class="soma" cx="119.6" cy="94.1" rx="1.2" ry="1"/>
+<line class="stem" x1="57.7" y1="96.7" x2="57.7" y2="95.5"/>
+<ellipse class="soma" cx="57.7" cy="95.5" rx="1.2" ry="1"/>
+<line class="stem" x1="112.1" y1="96.8" x2="112.1" y2="94.6"/>
+<ellipse class="soma" cx="112.1" cy="94.6" rx="1.2" ry="1"/>
+<line class="stem" x1="48.3" y1="97.9" x2="48.3" y2="95.9"/>
+<ellipse class="soma" cx="48.3" cy="95.9" rx="1.2" ry="1"/>
+<line class="stem" x1="114.7" y1="98.3" x2="114.7" y2="95.8"/>
+<ellipse class="soma" cx="114.7" cy="95.8" rx="1.2" ry="1"/>
+<line class="stem" x1="83.6" y1="98.7" x2="83.6" y2="97.5"/>
+<ellipse class="soma" cx="83.6" cy="97.5" rx="1.2" ry="1"/>
+<line class="stem" x1="91.9" y1="100.1" x2="91.9" y2="98.7"/>
+<ellipse class="soma" cx="91.9" cy="98.7" rx="1.2" ry="1"/>
+<line class="stem" x1="89.8" y1="101.2" x2="89.8" y2="99.9"/>
+<ellipse class="soma" cx="89.8" cy="99.9" rx="1.2" ry="1"/>
+<line class="stem" x1="121.6" y1="101.7" x2="121.6" y2="99.9"/>
+<ellipse class="soma" cx="121.6" cy="99.9" rx="1.2" ry="1"/>
+<line class="stem" x1="84" y1="101.8" x2="84" y2="100.4"/>
+<ellipse class="soma" cx="84" cy="100.4" rx="1.2" ry="1"/>
+<line class="stem" x1="122" y1="104.3" x2="122" y2="101.8"/>
+<ellipse class="soma" cx="122" cy="101.8" rx="1.2" ry="1"/>
+<line class="stem" x1="70.7" y1="104.7" x2="70.7" y2="103.2"/>
+<ellipse class="soma" cx="70.7" cy="103.2" rx="1.2" ry="1"/>
+<line class="stem" x1="85.5" y1="105.8" x2="85.5" y2="103.9"/>
+<ellipse class="soma" cx="85.5" cy="103.9" rx="1.2" ry="1"/>
+<line class="stem" x1="94.8" y1="105.9" x2="94.8" y2="104"/>
+<ellipse class="soma" cx="94.8" cy="104" rx="1.2" ry="1"/>
+<line class="stem" x1="76.6" y1="108" x2="76.6" y2="106.1"/>
+<ellipse class="soma" cx="76.6" cy="106.1" rx="1.2" ry="1"/>
+<line class="stem" x1="104.1" y1="109.7" x2="104.1" y2="107.8"/>
+<ellipse class="soma" cx="104.1" cy="107.8" rx="1.2" ry="1"/>
+<line class="stem" x1="112.8" y1="110.5" x2="112.8" y2="109"/>
+<ellipse class="soma" cx="112.8" cy="109" rx="1.2" ry="1"/>
+<line class="stem" x1="98.1" y1="111.9" x2="98.1" y2="109.8"/>
+<ellipse class="soma" cx="98.1" cy="109.8" rx="1.2" ry="1"/>
+<line class="stem" x1="104.5" y1="111.9" x2="104.5" y2="110.3"/>
+<ellipse class="soma" cx="104.5" cy="110.3" rx="1.2" ry="1"/>
+<line class="stem" x1="82" y1="114" x2="82" y2="112.3"/>
+<ellipse class="soma" cx="82" cy="112.3" rx="1.2" ry="1"/>
+<line class="stem" x1="86.4" y1="118" x2="86.4" y2="115.8"/>
+<ellipse class="soma" cx="86.4" cy="115.8" rx="1.2" ry="1"/>
+<line class="stem" x1="101.4" y1="121.1" x2="101.4" y2="119.6"/>
+<ellipse class="soma" cx="101.4" cy="119.6" rx="1.2" ry="1"/>
+<line class="stem" x1="97.5" y1="122.5" x2="97.5" y2="121.3"/>
+<ellipse class="soma" cx="97.5" cy="121.3" rx="1.2" ry="1"/>
+<line class="stem" x1="95.8" y1="123.3" x2="95.8" y2="121.3"/>
+<ellipse class="soma" cx="95.8" cy="121.3" rx="1.2" ry="1"/><text class="t-lbl" x="95" y="200" text-anchor="middle">DÍA 0</text><text class="t-xs muted" x="95" y="218" text-anchor="middle">caen al azar y se pegan</text>
+<polygon class="chip-side" points="367.3,81.5 285,129 285,132.3 367.3,84.8"/>
+<polygon class="chip-side2" points="285,129 202.7,81.5 202.7,84.8 285,132.3"/>
+<polygon class="chip" points="285,34 367.3,81.5 285,129 202.7,81.5"/>
+<path class="fil" d="M233.9,86 Q233.6,83.4 233.3,86.2" stroke-width="0.5"/>
+<path class="fil" d="M351.4,77.9 Q355.1,74.5 358.7,77.6" stroke-width="0.4"/>
+<path class="fil" d="M308.3,54.6 Q305.6,51.7 302.9,55.1" stroke-width="0.4"/>
+<path class="fil" d="M285.8,121.3 Q286.7,118.2 287.5,121.3" stroke-width="0.7"/>
+<path class="fil" d="M277.7,79.3 Q276.4,75.3 275.1,77.9" stroke-width="0.6"/>
+<path class="fil" d="M284.8,104 Q280.1,100.7 275.5,103.9" stroke-width="0.6"/>
+<path class="fil" d="M256.4,94 Q252,91.2 247.7,95.5" stroke-width="0.6"/>
+<path class="fil" d="M314.5,60.4 Q312.9,57.6 311.4,61.1" stroke-width="1.1"/>
+<path class="fil" d="M321,88.5 Q320.9,85.7 320.7,88.8" stroke-width="0.4"/>
+<path class="fil" d="M350.1,84.1 Q348.1,80.8 346.1,83.4" stroke-width="1"/>
+<path class="fil" d="M311.4,61.1 Q310.1,56.8 308.8,59.1" stroke-width="0.6"/>
+<path class="fil" d="M273.6,97.5 Q273.8,95.9 274,100.4" stroke-width="0.4"/>
+<path class="fil" d="M260.7,103.2 Q263.7,101.3 266.6,106.1" stroke-width="0.4"/>
+<path class="fil" d="M303,77.3 Q308.3,74.8 313.7,79.7" stroke-width="1.1"/>
+<path class="fil" d="M269.9,89.6 Q269.9,87.1 269.9,91.3" stroke-width="1"/>
+<path class="fil" d="M230.8,80.7 Q232.4,80 233.9,86" stroke-width="0.5"/>
+<path class="fil" d="M238.3,95.9 Q243,92 247.7,95.5" stroke-width="1.1"/>
+<path class="fil" d="M292.2,83.6 Q291.8,82.7 291.5,88.9" stroke-width="0.8"/>
+<path class="fil" d="M304.3,63.4 Q306.6,57.4 308.8,59.1" stroke-width="0.9"/>
+<path class="fil" d="M279.8,99.9 Q280.9,96.6 281.9,98.7" stroke-width="0.5"/>
+<path class="fil" d="M282.3,69.6 Q279.6,64.3 276.9,65.6" stroke-width="0.3"/>
+<path class="fil" d="M309.6,94.1 Q311.1,91.3 312.6,94.4" stroke-width="0.6"/>
+<path class="fil" d="M272,112.3 Q274.2,110.6 276.4,115.8" stroke-width="0.7"/>
+<path class="fil" d="M336.3,83.9 Q335.1,80.7 333.8,84" stroke-width="1"/>
+<path class="fil" d="M302.8,109 Q298.7,106.4 294.5,110.3" stroke-width="0.7"/>
+<path class="fil" d="M266.7,50.4 Q264.6,47.7 262.5,51.2" stroke-width="0.8"/>
+<path class="fil" d="M326.6,78.2 Q326.3,76 326,79.4" stroke-width="0.8"/>
+<path class="fil" d="M310.7,87.4 Q315.8,84.4 321,88.5" stroke-width="0.9"/>
+<path class="fil" d="M296.1,59.5 Q300.2,57.5 304.3,63.4" stroke-width="0.7"/>
+<path class="fil" d="M249.1,74.1 Q245.6,71.8 242,75.9" stroke-width="0.3"/>
+<path class="fil" d="M298,66.7 Q298.8,64.6 299.6,68" stroke-width="0.9"/>
+<path class="fil" d="M263.5,88.3 Q266.7,85.5 269.9,89.6" stroke-width="0.5"/>
+<path class="fil" d="M323.5,64.3 Q319,58.9 314.5,60.4" stroke-width="0.8"/>
+<path class="fil" d="M304.7,95.8 Q303.4,92.2 302.1,94.6" stroke-width="0.3"/>
+<path class="fil" d="M232.8,71 Q236,68.8 239.3,72.8" stroke-width="0.6"/>
+<path class="fil" d="M291.4,119.6 Q289.4,117.5 287.5,121.3" stroke-width="0.2"/>
+<path class="fil" d="M242.2,84.6 Q238.1,81.9 233.9,86" stroke-width="0.8"/>
+<path class="fil" d="M297,45.9 Q294.7,40.4 292.4,41.5" stroke-width="0.7"/>
+<path class="fil" d="M237.4,75.8 Q238.3,71.2 239.3,72.8" stroke-width="1.1"/>
+<path class="fil" d="M275.5,72.4 Q275.3,71.3 275.1,77.9" stroke-width="0.9"/>
+<path class="fil" d="M257.4,68.3 Q260.1,65.1 262.8,68.5" stroke-width="0.8"/>
+<path class="fil" d="M318.5,75.7 Q318.1,72.5 317.7,75.1" stroke-width="1"/>
+<path class="fil" d="M242,75.9 Q239.7,72.4 237.4,75.8" stroke-width="0.6"/>
+<path class="fil" d="M247,65.7 Q248.4,59.4 249.8,60.6" stroke-width="0.7"/>
+<path class="fil" d="M313.7,79.7 Q316.1,74.3 318.5,75.7" stroke-width="1"/>
+<path class="fil" d="M302.5,92.8 Q302.3,90.7 302.1,94.6" stroke-width="0.4"/>
+<path class="fil" d="M228.3,86 Q230.8,83.2 233.3,86.2" stroke-width="0.7"/>
+<path class="fil" d="M249.8,60.6 Q248.2,57.7 246.5,61.5" stroke-width="0.3"/>
+<path class="fil" d="M341.3,89.9 Q339.3,85.8 337.2,88.1" stroke-width="0.8"/>
+<path class="fil" d="M223.6,76.5 Q227.2,75 230.8,80.7" stroke-width="1.2"/>
+<path class="fil" d="M247.4,58.6 Q246.9,56.9 246.5,61.5" stroke-width="0.4"/>
+<path class="fil" d="M276.9,65.6 Q276.4,62 275.8,64.1" stroke-width="0.4"/>
+<path class="fil" d="M312,101.8 Q311.8,97.7 311.6,99.9" stroke-width="1.2"/>
+<path class="fil" d="M288.1,109.8 Q291.3,106.8 294.5,110.3" stroke-width="1.1"/>
+<path class="fil" d="M254.3,53.3 Q258.4,48.7 262.5,51.2" stroke-width="0.9"/>
+<path class="fil" d="M294.5,110.3 Q294.3,106.1 294.1,107.8" stroke-width="0.5"/>
+<path class="fil" d="M267.6,81.7 Q272.7,76.9 277.7,79.3" stroke-width="0.9"/>
+<path class="fil" d="M275.5,103.9 Q274.8,98.9 274,100.4" stroke-width="0.6"/>
+<path class="fil" d="M291.1,69.5 Q294.6,64.6 298,66.7" stroke-width="0.7"/>
+<line class="stem" x1="292.4" y1="43" x2="292.4" y2="41.5"/>
+<ellipse class="soma" cx="292.4" cy="41.5" rx="1.2" ry="1"/>
+<line class="stem" x1="297" y1="47.1" x2="297" y2="45.9"/>
+<ellipse class="soma" cx="297" cy="45.9" rx="1.2" ry="1"/>
+<line class="stem" x1="266.7" y1="52.9" x2="266.7" y2="50.4"/>
+<ellipse class="soma" cx="266.7" cy="50.4" rx="1.2" ry="1"/>
+<line class="stem" x1="262.5" y1="53.2" x2="262.5" y2="51.2"/>
+<ellipse class="soma" cx="262.5" cy="51.2" rx="1.2" ry="1"/>
+<line class="stem" x1="254.3" y1="55.9" x2="254.3" y2="53.3"/>
+<ellipse class="soma" cx="254.3" cy="53.3" rx="1.2" ry="1"/>
+<line class="stem" x1="308.3" y1="55.9" x2="308.3" y2="54.6"/>
+<ellipse class="soma" cx="308.3" cy="54.6" rx="1.2" ry="1"/>
+<line class="stem" x1="279.3" y1="56.7" x2="279.3" y2="54"/>
+<ellipse class="soma" cx="279.3" cy="54" rx="1.2" ry="1"/>
+<line class="stem" x1="302.9" y1="56.9" x2="302.9" y2="55.1"/>
+<ellipse class="soma" cx="302.9" cy="55.1" rx="1.2" ry="1"/>
+<line class="stem" x1="247.4" y1="61" x2="247.4" y2="58.6"/>
+<ellipse class="soma" cx="247.4" cy="58.6" rx="1.2" ry="1"/>
+<line class="stem" x1="308.8" y1="61.8" x2="308.8" y2="59.1"/>
+<ellipse class="soma" cx="308.8" cy="59.1" rx="1.2" ry="1"/>
+<line class="stem" x1="296.1" y1="62.2" x2="296.1" y2="59.5"/>
+<ellipse class="soma" cx="296.1" cy="59.5" rx="1.2" ry="1"/>
+<line class="stem" x1="311.4" y1="62.5" x2="311.4" y2="61.1"/>
+<ellipse class="soma" cx="311.4" cy="61.1" rx="1.2" ry="1"/>
+<line class="stem" x1="314.5" y1="62.9" x2="314.5" y2="60.4"/>
+<ellipse class="soma" cx="314.5" cy="60.4" rx="1.2" ry="1"/>
+<line class="stem" x1="246.5" y1="62.9" x2="246.5" y2="61.5"/>
+<ellipse class="soma" cx="246.5" cy="61.5" rx="1.2" ry="1"/>
+<line class="stem" x1="249.8" y1="63.3" x2="249.8" y2="60.6"/>
+<ellipse class="soma" cx="249.8" cy="60.6" rx="1.2" ry="1"/>
+<line class="stem" x1="304.3" y1="64.6" x2="304.3" y2="63.4"/>
+<ellipse class="soma" cx="304.3" cy="63.4" rx="1.2" ry="1"/>
+<line class="stem" x1="275.8" y1="65.9" x2="275.8" y2="64.1"/>
+<ellipse class="soma" cx="275.8" cy="64.1" rx="1.2" ry="1"/>
+<line class="stem" x1="323.5" y1="66.7" x2="323.5" y2="64.3"/>
+<ellipse class="soma" cx="323.5" cy="64.3" rx="1.2" ry="1"/>
+<line class="stem" x1="247" y1="67.1" x2="247" y2="65.7"/>
+<ellipse class="soma" cx="247" cy="65.7" rx="1.2" ry="1"/>
+<line class="stem" x1="276.9" y1="67.7" x2="276.9" y2="65.6"/>
+<ellipse class="soma" cx="276.9" cy="65.6" rx="1.2" ry="1"/>
+<line class="stem" x1="298" y1="68.8" x2="298" y2="66.7"/>
+<ellipse class="soma" cx="298" cy="66.7" rx="1.2" ry="1"/>
+<line class="stem" x1="299.6" y1="69.8" x2="299.6" y2="68"/>
+<ellipse class="soma" cx="299.6" cy="68" rx="1.2" ry="1"/>
+<line class="stem" x1="257.4" y1="70.3" x2="257.4" y2="68.3"/>
+<ellipse class="soma" cx="257.4" cy="68.3" rx="1.2" ry="1"/>
+<line class="stem" x1="291.1" y1="70.8" x2="291.1" y2="69.5"/>
+<ellipse class="soma" cx="291.1" cy="69.5" rx="1.2" ry="1"/>
+<line class="stem" x1="262.8" y1="71.1" x2="262.8" y2="68.5"/>
+<ellipse class="soma" cx="262.8" cy="68.5" rx="1.2" ry="1"/>
+<line class="stem" x1="282.3" y1="71.8" x2="282.3" y2="69.6"/>
+<ellipse class="soma" cx="282.3" cy="69.6" rx="1.2" ry="1"/>
+<line class="stem" x1="232.8" y1="72.9" x2="232.8" y2="71"/>
+<ellipse class="soma" cx="232.8" cy="71" rx="1.2" ry="1"/>
+<line class="stem" x1="239.3" y1="74.7" x2="239.3" y2="72.8"/>
+<ellipse class="soma" cx="239.3" cy="72.8" rx="1.2" ry="1"/>
+<line class="stem" x1="275.5" y1="75.3" x2="275.5" y2="72.4"/>
+<ellipse class="soma" cx="275.5" cy="72.4" rx="1.2" ry="1"/>
+<line class="stem" x1="317.7" y1="76.4" x2="317.7" y2="75.1"/>
+<ellipse class="soma" cx="317.7" cy="75.1" rx="1.2" ry="1"/>
+<line class="stem" x1="249.1" y1="76.4" x2="249.1" y2="74.1"/>
+<ellipse class="soma" cx="249.1" cy="74.1" rx="1.2" ry="1"/>
+<line class="stem" x1="237.4" y1="77.1" x2="237.4" y2="75.8"/>
+<ellipse class="soma" cx="237.4" cy="75.8" rx="1.2" ry="1"/>
+<line class="stem" x1="318.5" y1="77.6" x2="318.5" y2="75.7"/>
+<ellipse class="soma" cx="318.5" cy="75.7" rx="1.2" ry="1"/>
+<line class="stem" x1="242" y1="78.3" x2="242" y2="75.9"/>
+<ellipse class="soma" cx="242" cy="75.9" rx="1.2" ry="1"/>
+<line class="stem" x1="223.6" y1="78.4" x2="223.6" y2="76.5"/>
+<ellipse class="soma" cx="223.6" cy="76.5" rx="1.2" ry="1"/>
+<line class="stem" x1="303" y1="79" x2="303" y2="77.3"/>
+<ellipse class="soma" cx="303" cy="77.3" rx="1.2" ry="1"/>
+<line class="stem" x1="275.1" y1="79.1" x2="275.1" y2="77.9"/>
+<ellipse class="soma" cx="275.1" cy="77.9" rx="1.2" ry="1"/>
+<line class="stem" x1="326.6" y1="80.2" x2="326.6" y2="78.2"/>
+<ellipse class="soma" cx="326.6" cy="78.2" rx="1.2" ry="1"/>
+<line class="stem" x1="358.7" y1="80.4" x2="358.7" y2="77.6"/>
+<ellipse class="soma" cx="358.7" cy="77.6" rx="1.2" ry="1"/>
+<line class="stem" x1="351.4" y1="80.5" x2="351.4" y2="77.9"/>
+<ellipse class="soma" cx="351.4" cy="77.9" rx="1.2" ry="1"/>
+<line class="stem" x1="313.7" y1="80.8" x2="313.7" y2="79.7"/>
+<ellipse class="soma" cx="313.7" cy="79.7" rx="1.2" ry="1"/>
+<line class="stem" x1="277.7" y1="81.5" x2="277.7" y2="79.3"/>
+<ellipse class="soma" cx="277.7" cy="79.3" rx="1.2" ry="1"/>
+<line class="stem" x1="326" y1="81.7" x2="326" y2="79.4"/>
+<ellipse class="soma" cx="326" cy="79.4" rx="1.2" ry="1"/>
+<line class="stem" x1="230.8" y1="82.9" x2="230.8" y2="80.7"/>
+<ellipse class="soma" cx="230.8" cy="80.7" rx="1.2" ry="1"/>
+<line class="stem" x1="267.6" y1="84" x2="267.6" y2="81.7"/>
+<ellipse class="soma" cx="267.6" cy="81.7" rx="1.2" ry="1"/>
+<line class="stem" x1="292.2" y1="85" x2="292.2" y2="83.6"/>
+<ellipse class="soma" cx="292.2" cy="83.6" rx="1.2" ry="1"/>
+<line class="stem" x1="346.1" y1="85.1" x2="346.1" y2="83.4"/>
+<ellipse class="soma" cx="346.1" cy="83.4" rx="1.2" ry="1"/>
+<line class="stem" x1="336.3" y1="85.5" x2="336.3" y2="83.9"/>
+<ellipse class="soma" cx="336.3" cy="83.9" rx="1.2" ry="1"/>
+<line class="stem" x1="350.1" y1="86" x2="350.1" y2="84.1"/>
+<ellipse class="soma" cx="350.1" cy="84.1" rx="1.2" ry="1"/>
+<line class="stem" x1="333.8" y1="86.8" x2="333.8" y2="84"/>
+<ellipse class="soma" cx="333.8" cy="84" rx="1.2" ry="1"/>
+<line class="stem" x1="242.2" y1="87.2" x2="242.2" y2="84.6"/>
+<ellipse class="soma" cx="242.2" cy="84.6" rx="1.2" ry="1"/>
+<line class="stem" x1="233.9" y1="88.2" x2="233.9" y2="86"/>
+<ellipse class="soma" cx="233.9" cy="86" rx="1.2" ry="1"/>
+<line class="stem" x1="228.3" y1="88.5" x2="228.3" y2="86"/>
+<ellipse class="soma" cx="228.3" cy="86" rx="1.2" ry="1"/>
+<line class="stem" x1="233.3" y1="88.7" x2="233.3" y2="86.2"/>
+<ellipse class="soma" cx="233.3" cy="86.2" rx="1.2" ry="1"/>
+<line class="stem" x1="310.7" y1="89.1" x2="310.7" y2="87.4"/>
+<ellipse class="soma" cx="310.7" cy="87.4" rx="1.2" ry="1"/>
+<line class="stem" x1="337.2" y1="89.5" x2="337.2" y2="88.1"/>
+<ellipse class="soma" cx="337.2" cy="88.1" rx="1.2" ry="1"/>
+<line class="stem" x1="321" y1="89.9" x2="321" y2="88.5"/>
+<ellipse class="soma" cx="321" cy="88.5" rx="1.2" ry="1"/>
+<line class="stem" x1="291.5" y1="90.7" x2="291.5" y2="88.9"/>
+<ellipse class="soma" cx="291.5" cy="88.9" rx="1.2" ry="1"/>
+<line class="stem" x1="263.5" y1="91" x2="263.5" y2="88.3"/>
+<ellipse class="soma" cx="263.5" cy="88.3" rx="1.2" ry="1"/>
+<line class="stem" x1="320.7" y1="91" x2="320.7" y2="88.8"/>
+<ellipse class="soma" cx="320.7" cy="88.8" rx="1.2" ry="1"/>
+<line class="stem" x1="269.9" y1="91.3" x2="269.9" y2="89.6"/>
+<ellipse class="soma" cx="269.9" cy="89.6" rx="1.2" ry="1"/>
+<line class="stem" x1="341.3" y1="91.7" x2="341.3" y2="89.9"/>
+<ellipse class="soma" cx="341.3" cy="89.9" rx="1.2" ry="1"/>
+<line class="stem" x1="269.9" y1="94" x2="269.9" y2="91.3"/>
+<ellipse class="soma" cx="269.9" cy="91.3" rx="1.2" ry="1"/>
+<line class="stem" x1="302.5" y1="94.4" x2="302.5" y2="92.8"/>
+<ellipse class="soma" cx="302.5" cy="92.8" rx="1.2" ry="1"/>
+<line class="stem" x1="256.4" y1="95.8" x2="256.4" y2="94"/>
+<ellipse class="soma" cx="256.4" cy="94" rx="1.2" ry="1"/>
+<line class="stem" x1="312.6" y1="96" x2="312.6" y2="94.4"/>
+<ellipse class="soma" cx="312.6" cy="94.4" rx="1.2" ry="1"/>
+<line class="stem" x1="309.6" y1="96" x2="309.6" y2="94.1"/>
+<ellipse class="soma" cx="309.6" cy="94.1" rx="1.2" ry="1"/>
+<line class="stem" x1="247.7" y1="96.7" x2="247.7" y2="95.5"/>
+<ellipse class="soma" cx="247.7" cy="95.5" rx="1.2" ry="1"/>
+<line class="stem" x1="302.1" y1="96.8" x2="302.1" y2="94.6"/>
+<ellipse class="soma" cx="302.1" cy="94.6" rx="1.2" ry="1"/>
+<line class="stem" x1="238.3" y1="97.9" x2="238.3" y2="95.9"/>
+<ellipse class="soma" cx="238.3" cy="95.9" rx="1.2" ry="1"/>
+<line class="stem" x1="304.7" y1="98.3" x2="304.7" y2="95.8"/>
+<ellipse class="soma" cx="304.7" cy="95.8" rx="1.2" ry="1"/>
+<line class="stem" x1="273.6" y1="98.7" x2="273.6" y2="97.5"/>
+<ellipse class="soma" cx="273.6" cy="97.5" rx="1.2" ry="1"/>
+<line class="stem" x1="281.9" y1="100.1" x2="281.9" y2="98.7"/>
+<ellipse class="soma" cx="281.9" cy="98.7" rx="1.2" ry="1"/>
+<line class="stem" x1="279.8" y1="101.2" x2="279.8" y2="99.9"/>
+<ellipse class="soma" cx="279.8" cy="99.9" rx="1.2" ry="1"/>
+<line class="stem" x1="311.6" y1="101.7" x2="311.6" y2="99.9"/>
+<ellipse class="soma" cx="311.6" cy="99.9" rx="1.2" ry="1"/>
+<line class="stem" x1="274" y1="101.8" x2="274" y2="100.4"/>
+<ellipse class="soma" cx="274" cy="100.4" rx="1.2" ry="1"/>
+<line class="stem" x1="312" y1="104.3" x2="312" y2="101.8"/>
+<ellipse class="soma" cx="312" cy="101.8" rx="1.2" ry="1"/>
+<line class="stem" x1="260.7" y1="104.7" x2="260.7" y2="103.2"/>
+<ellipse class="soma" cx="260.7" cy="103.2" rx="1.2" ry="1"/>
+<line class="stem" x1="275.5" y1="105.8" x2="275.5" y2="103.9"/>
+<ellipse class="soma" cx="275.5" cy="103.9" rx="1.2" ry="1"/>
+<line class="stem" x1="284.8" y1="105.9" x2="284.8" y2="104"/>
+<ellipse class="soma" cx="284.8" cy="104" rx="1.2" ry="1"/>
+<line class="stem" x1="266.6" y1="108" x2="266.6" y2="106.1"/>
+<ellipse class="soma" cx="266.6" cy="106.1" rx="1.2" ry="1"/>
+<line class="stem" x1="294.1" y1="109.7" x2="294.1" y2="107.8"/>
+<ellipse class="soma" cx="294.1" cy="107.8" rx="1.2" ry="1"/>
+<line class="stem" x1="302.8" y1="110.5" x2="302.8" y2="109"/>
+<ellipse class="soma" cx="302.8" cy="109" rx="1.2" ry="1"/>
+<line class="stem" x1="288.1" y1="111.9" x2="288.1" y2="109.8"/>
+<ellipse class="soma" cx="288.1" cy="109.8" rx="1.2" ry="1"/>
+<line class="stem" x1="294.5" y1="111.9" x2="294.5" y2="110.3"/>
+<ellipse class="soma" cx="294.5" cy="110.3" rx="1.2" ry="1"/>
+<line class="stem" x1="272" y1="114" x2="272" y2="112.3"/>
+<ellipse class="soma" cx="272" cy="112.3" rx="1.2" ry="1"/>
+<line class="stem" x1="276.4" y1="118" x2="276.4" y2="115.8"/>
+<ellipse class="soma" cx="276.4" cy="115.8" rx="1.2" ry="1"/>
+<line class="stem" x1="291.4" y1="121.1" x2="291.4" y2="119.6"/>
+<ellipse class="soma" cx="291.4" cy="119.6" rx="1.2" ry="1"/>
+<line class="stem" x1="287.5" y1="122.5" x2="287.5" y2="121.3"/>
+<ellipse class="soma" cx="287.5" cy="121.3" rx="1.2" ry="1"/>
+<line class="stem" x1="285.8" y1="123.3" x2="285.8" y2="121.3"/>
+<ellipse class="soma" cx="285.8" cy="121.3" rx="1.2" ry="1"/><text class="t-lbl" x="285" y="200" text-anchor="middle">DÍA 3</text><text class="t-xs muted" x="285" y="218" text-anchor="middle">brotan filamentos cortos</text>
+<polygon class="chip-side" points="557.3,81.5 475,129 475,132.3 557.3,84.8"/>
+<polygon class="chip-side2" points="475,129 392.7,81.5 392.7,84.8 475,132.3"/>
+<polygon class="chip" points="475,34 557.3,81.5 475,129 392.7,81.5"/>
+<path class="fil" d="M423.9,86 Q423.6,83.4 423.3,86.2" stroke-width="0.5"/>
+<path class="fil" d="M423.9,86 Q421.1,82.9 418.3,86" stroke-width="0.5"/>
+<path class="fil" d="M541.4,77.9 Q545.1,74.5 548.7,77.6" stroke-width="1.1"/>
+<path class="fil" d="M541.4,77.9 Q538.8,76.9 536.1,83.4" stroke-width="0.7"/>
+<path class="fil" d="M498.3,54.6 Q495.6,51.7 492.9,55.1" stroke-width="0.3"/>
+<path class="fil" d="M498.3,54.6 Q498.6,52.8 498.8,59.1" stroke-width="0.3"/>
+<path class="fil" d="M475.8,121.3 Q476.7,118.2 477.5,121.3" stroke-width="1"/>
+<path class="fil" d="M475.8,121.3 Q478.6,117.1 481.4,119.6" stroke-width="1"/>
+<path class="fil" d="M467.7,79.3 Q466.4,75.3 465.1,77.9" stroke-width="0.9"/>
+<path class="fil" d="M467.7,79.3 Q466.6,72.1 465.5,72.4" stroke-width="1.1"/>
+<path class="fil" d="M474.8,104 Q470.1,100.7 465.5,103.9" stroke-width="1"/>
+<path class="fil" d="M474.8,104 Q472.3,98.4 469.8,99.9" stroke-width="1"/>
+<path class="fil" d="M446.4,94 Q442,91.2 437.7,95.5" stroke-width="0.3"/>
+<path class="fil" d="M446.4,94 Q449.9,87.3 453.5,88.3" stroke-width="1"/>
+<path class="fil" d="M504.5,60.4 Q502.9,57.6 501.4,61.1" stroke-width="0.3"/>
+<path class="fil" d="M504.5,60.4 Q501.7,56.7 498.8,59.1" stroke-width="1"/>
+<path class="fil" d="M511,88.5 Q510.9,85.7 510.7,88.8" stroke-width="0.3"/>
+<path class="fil" d="M511,88.5 Q505.8,84.4 500.7,87.4" stroke-width="0.9"/>
+<path class="fil" d="M540.1,84.1 Q538.1,80.8 536.1,83.4" stroke-width="1.2"/>
+<path class="fil" d="M540.1,84.1 Q540.7,77.3 541.4,77.9" stroke-width="0.4"/>
+<path class="fil" d="M501.4,61.1 Q500.1,56.8 498.8,59.1" stroke-width="0.9"/>
+<path class="fil" d="M463.6,97.5 Q463.8,95.9 464,100.4" stroke-width="1.1"/>
+<path class="fil" d="M463.6,97.5 Q466.7,95.5 469.8,99.9" stroke-width="0.4"/>
+<path class="fil" d="M450.7,103.2 Q453.7,101.3 456.6,106.1" stroke-width="1"/>
+<path class="fil" d="M450.7,103.2 Q457.4,97.9 464,100.4" stroke-width="0.8"/>
+<path class="fil" d="M493,77.3 Q498.3,74.8 503.7,79.7" stroke-width="1.2"/>
+<path class="fil" d="M493,77.3 Q487.6,76.5 482.2,83.6" stroke-width="0.4"/>
+<path class="fil" d="M459.9,89.6 Q459.9,87.1 459.9,91.3" stroke-width="0.7"/>
+<path class="fil" d="M459.9,89.6 Q456.7,85.5 453.5,88.3" stroke-width="0.5"/>
+<path class="fil" d="M420.8,80.7 Q422.4,80 423.9,86" stroke-width="0.9"/>
+<path class="fil" d="M420.8,80.7 Q419.5,79.8 418.3,86" stroke-width="0.5"/>
+<path class="fil" d="M428.3,95.9 Q433,92 437.7,95.5" stroke-width="0.7"/>
+<path class="fil" d="M428.3,95.9 Q425.8,86.7 423.3,86.2" stroke-width="0.8"/>
+<path class="fil" d="M469.3,54 Q463,48.3 456.7,50.4" stroke-width="0.9"/>
+<path class="fil" d="M469.3,54 Q467.5,54.6 465.8,64.1" stroke-width="0.9"/>
+<path class="fil" d="M482.2,83.6 Q481.8,82.7 481.5,88.9" stroke-width="1.1"/>
+<path class="fil" d="M494.3,63.4 Q496.6,57.4 498.8,59.1" stroke-width="0.7"/>
+<path class="fil" d="M494.3,63.4 Q497.8,59 501.4,61.1" stroke-width="0.5"/>
+<path class="fil" d="M469.8,99.9 Q470.9,96.6 471.9,98.7" stroke-width="1"/>
+<path class="fil" d="M469.8,99.9 Q466.9,97.1 464,100.4" stroke-width="1"/>
+<path class="fil" d="M459.9,91.3 Q456.7,86.6 453.5,88.3" stroke-width="0.6"/>
+<path class="fil" d="M472.3,69.6 Q469.6,64.3 466.9,65.6" stroke-width="0.9"/>
+<path class="fil" d="M472.3,69.6 Q476.7,65.8 481.1,69.5" stroke-width="1.1"/>
+<path class="fil" d="M499.6,94.1 Q501.1,91.3 502.6,94.4" stroke-width="0.3"/>
+<path class="fil" d="M499.6,94.1 Q497.1,91.6 494.7,95.8" stroke-width="0.6"/>
+<path class="fil" d="M462,112.3 Q464.2,110.6 466.4,115.8" stroke-width="0.4"/>
+<path class="fil" d="M462,112.3 Q459.3,105.6 456.6,106.1" stroke-width="1"/>
+<path class="fil" d="M526.3,83.9 Q525.1,80.7 523.8,84" stroke-width="1"/>
+<path class="fil" d="M526.3,83.9 Q526.7,82.8 527.2,88.1" stroke-width="1.1"/>
+<path class="fil" d="M492.8,109 Q488.7,106.4 484.5,110.3" stroke-width="0.5"/>
+<path class="fil" d="M492.8,109 Q488.4,105 484.1,107.8" stroke-width="0.6"/>
+<path class="fil" d="M456.7,50.4 Q454.6,47.7 452.5,51.2" stroke-width="0.3"/>
+<path class="fil" d="M456.7,50.4 Q450.5,48.1 444.3,53.3" stroke-width="0.2"/>
+<path class="fil" d="M516.6,78.2 Q516.3,76 516,79.4" stroke-width="0.9"/>
+<path class="fil" d="M516.6,78.2 Q512.5,73.6 508.5,75.7" stroke-width="0.7"/>
+<path class="fil" d="M500.7,87.4 Q505.7,84.4 510.7,88.8" stroke-width="0.9"/>
+<path class="fil" d="M486.1,59.5 Q490.2,57.5 494.3,63.4" stroke-width="0.9"/>
+<path class="fil" d="M486.1,59.5 Q489.5,53.4 492.9,55.1" stroke-width="1.1"/>
+<path class="fil" d="M439.1,74.1 Q435.6,71.8 432,75.9" stroke-width="1"/>
+<path class="fil" d="M439.1,74.1 Q434.2,69.8 429.3,72.8" stroke-width="0.9"/>
+<path class="fil" d="M488,66.7 Q488.8,64.6 489.6,68" stroke-width="0.6"/>
+<path class="fil" d="M488,66.7 Q484.6,64.6 481.1,69.5" stroke-width="0.4"/>
+<path class="fil" d="M492.9,55.1 Q495.9,53.3 498.8,59.1" stroke-width="0.4"/>
+<path class="fil" d="M516,79.4 Q512.3,74 508.5,75.7" stroke-width="1.1"/>
+<path class="fil" d="M513.5,64.3 Q509,58.9 504.5,60.4" stroke-width="0.8"/>
+<path class="fil" d="M513.5,64.3 Q507.4,58.4 501.4,61.1" stroke-width="1"/>
+<path class="fil" d="M494.7,95.8 Q493.4,92.2 492.1,94.6" stroke-width="0.5"/>
+<path class="fil" d="M422.8,71 Q426,68.8 429.3,72.8" stroke-width="1.1"/>
+<path class="fil" d="M422.8,71 Q425.1,69.9 427.4,75.8" stroke-width="0.5"/>
+<path class="fil" d="M481.4,119.6 Q479.4,117.5 477.5,121.3" stroke-width="1.1"/>
+<path class="fil" d="M432.2,84.6 Q428.1,81.9 423.9,86" stroke-width="0.8"/>
+<path class="fil" d="M432.2,84.6 Q427.7,82.1 423.3,86.2" stroke-width="0.4"/>
+<path class="fil" d="M523.8,84 Q525.5,82.4 527.2,88.1" stroke-width="0.3"/>
+<path class="fil" d="M423.3,86.2 Q420.8,83.2 418.3,86" stroke-width="1.1"/>
+<path class="fil" d="M481.5,88.9 Q487,87.2 492.5,92.8" stroke-width="0.5"/>
+<path class="fil" d="M487,45.9 Q484.7,40.4 482.4,41.5" stroke-width="0.6"/>
+<path class="fil" d="M487,45.9 Q490,46.1 492.9,55.1" stroke-width="0.4"/>
+<path class="fil" d="M427.4,75.8 Q428.3,71.2 429.3,72.8" stroke-width="0.3"/>
+<path class="fil" d="M427.4,75.8 Q429.7,72.4 432,75.9" stroke-width="0.3"/>
+<path class="fil" d="M465.5,72.4 Q465.3,71.3 465.1,77.9" stroke-width="0.4"/>
+<path class="fil" d="M465.5,72.4 Q468.9,67.4 472.3,69.6" stroke-width="0.9"/>
+<path class="fil" d="M447.4,68.3 Q450.1,65.1 452.8,68.5" stroke-width="0.5"/>
+<path class="fil" d="M447.4,68.3 Q442.2,63.2 437,65.7" stroke-width="0.4"/>
+<path class="fil" d="M508.5,75.7 Q508.1,72.5 507.7,75.1" stroke-width="0.5"/>
+<path class="fil" d="M508.5,75.7 Q506.1,74.3 503.7,79.7" stroke-width="0.8"/>
+<path class="fil" d="M432,75.9 Q430.7,71 429.3,72.8" stroke-width="0.6"/>
+<path class="fil" d="M437,65.7 Q438.4,59.4 439.8,60.6" stroke-width="1.1"/>
+<path class="fil" d="M437,65.7 Q436.8,60.5 436.5,61.5" stroke-width="1"/>
+<path class="fil" d="M489.6,68 Q485.4,65.3 481.1,69.5" stroke-width="0.7"/>
+<path class="fil" d="M503.7,79.7 Q505.7,74.1 507.7,75.1" stroke-width="0.7"/>
+<path class="fil" d="M492.1,94.6 Q492.3,90.7 492.5,92.8" stroke-width="1.2"/>
+<path class="fil" d="M492.5,92.8 Q493.6,90.7 494.7,95.8" stroke-width="1.1"/>
+<path class="fil" d="M452.5,51.2 Q448.4,48.7 444.3,53.3" stroke-width="1.2"/>
+<path class="fil" d="M439.8,60.6 Q438.2,57.7 436.5,61.5" stroke-width="0.4"/>
+<path class="fil" d="M439.8,60.6 Q438.6,56.6 437.4,58.6" stroke-width="1.2"/>
+<path class="fil" d="M531.3,89.9 Q529.3,85.8 527.2,88.1" stroke-width="1.1"/>
+<path class="fil" d="M531.3,89.9 Q527.6,83 523.8,84" stroke-width="0.6"/>
+<path class="fil" d="M436.5,61.5 Q436.9,56.9 437.4,58.6" stroke-width="0.3"/>
+<path class="fil" d="M456.6,106.1 Q461,101.7 465.5,103.9" stroke-width="0.5"/>
+<path class="fil" d="M413.6,76.5 Q417.2,75 420.8,80.7" stroke-width="1.1"/>
+<path class="fil" d="M413.6,76.5 Q418.2,70.1 422.8,71" stroke-width="1"/>
+<path class="fil" d="M466.9,65.6 Q466.4,62 465.8,64.1" stroke-width="0.4"/>
+<path class="fil" d="M466.4,115.8 Q471.1,114.8 475.8,121.3" stroke-width="0.8"/>
+<path class="fil" d="M502,101.8 Q501.8,97.7 501.6,99.9" stroke-width="0.5"/>
+<path class="fil" d="M502,101.8 Q498.4,95.1 494.7,95.8" stroke-width="1.1"/>
+<path class="fil" d="M471.9,98.7 Q468,96.3 464,100.4" stroke-width="0.2"/>
+<path class="fil" d="M501.6,99.9 Q498.2,94.2 494.7,95.8" stroke-width="0.3"/>
+<path class="fil" d="M478.1,109.8 Q481.3,106.8 484.5,110.3" stroke-width="0.6"/>
+<path class="fil" d="M478.1,109.8 Q481.1,105.6 484.1,107.8" stroke-width="1.1"/>
+<path class="fil" d="M444.3,53.3 Q440.8,52.4 437.4,58.6" stroke-width="0.6"/>
+<path class="fil" d="M484.5,110.3 Q484.3,106.1 484.1,107.8" stroke-width="1.1"/>
+<path class="fil" d="M548.7,77.6 Q544.4,76.8 540.1,84.1" stroke-width="0.6"/>
+<path class="fil" d="M452.8,68.5 Q459.2,66.6 465.5,72.4" stroke-width="0.7"/>
+<path class="fil" d="M457.6,81.7 Q462.7,76.9 467.7,79.3" stroke-width="0.3"/>
+<path class="fil" d="M457.6,81.7 Q461.4,75.7 465.1,77.9" stroke-width="0.2"/>
+<path class="fil" d="M502.6,94.4 Q498.7,91.3 494.7,95.8" stroke-width="1.1"/>
+<path class="fil" d="M465.8,64.1 Q469.1,63.1 472.3,69.6" stroke-width="0.3"/>
+<path class="fil" d="M465.5,103.9 Q464.8,98.9 464,100.4" stroke-width="0.9"/>
+<path class="fil" d="M465.5,103.9 Q467.7,98.4 469.8,99.9" stroke-width="0.8"/>
+<line class="stem" x1="482.4" y1="43" x2="482.4" y2="41.5"/>
+<ellipse class="soma" cx="482.4" cy="41.5" rx="1.2" ry="1"/>
+<line class="stem" x1="487" y1="47.1" x2="487" y2="45.9"/>
+<ellipse class="soma" cx="487" cy="45.9" rx="1.2" ry="1"/>
+<line class="stem" x1="456.7" y1="52.9" x2="456.7" y2="50.4"/>
+<ellipse class="soma" cx="456.7" cy="50.4" rx="1.2" ry="1"/>
+<line class="stem" x1="452.5" y1="53.2" x2="452.5" y2="51.2"/>
+<ellipse class="soma" cx="452.5" cy="51.2" rx="1.2" ry="1"/>
+<line class="stem" x1="444.3" y1="55.9" x2="444.3" y2="53.3"/>
+<ellipse class="soma" cx="444.3" cy="53.3" rx="1.2" ry="1"/>
+<line class="stem" x1="498.3" y1="55.9" x2="498.3" y2="54.6"/>
+<ellipse class="soma" cx="498.3" cy="54.6" rx="1.2" ry="1"/>
+<line class="stem" x1="469.3" y1="56.7" x2="469.3" y2="54"/>
+<ellipse class="soma" cx="469.3" cy="54" rx="1.2" ry="1"/>
+<line class="stem" x1="492.9" y1="56.9" x2="492.9" y2="55.1"/>
+<ellipse class="soma" cx="492.9" cy="55.1" rx="1.2" ry="1"/>
+<line class="stem" x1="437.4" y1="61" x2="437.4" y2="58.6"/>
+<ellipse class="soma" cx="437.4" cy="58.6" rx="1.2" ry="1"/>
+<line class="stem" x1="498.8" y1="61.8" x2="498.8" y2="59.1"/>
+<ellipse class="soma" cx="498.8" cy="59.1" rx="1.2" ry="1"/>
+<line class="stem" x1="486.1" y1="62.2" x2="486.1" y2="59.5"/>
+<ellipse class="soma" cx="486.1" cy="59.5" rx="1.2" ry="1"/>
+<line class="stem" x1="501.4" y1="62.5" x2="501.4" y2="61.1"/>
+<ellipse class="soma" cx="501.4" cy="61.1" rx="1.2" ry="1"/>
+<line class="stem" x1="504.5" y1="62.9" x2="504.5" y2="60.4"/>
+<ellipse class="soma" cx="504.5" cy="60.4" rx="1.2" ry="1"/>
+<line class="stem" x1="436.5" y1="62.9" x2="436.5" y2="61.5"/>
+<ellipse class="soma" cx="436.5" cy="61.5" rx="1.2" ry="1"/>
+<line class="stem" x1="439.8" y1="63.3" x2="439.8" y2="60.6"/>
+<ellipse class="soma" cx="439.8" cy="60.6" rx="1.2" ry="1"/>
+<line class="stem" x1="494.3" y1="64.6" x2="494.3" y2="63.4"/>
+<ellipse class="soma" cx="494.3" cy="63.4" rx="1.2" ry="1"/>
+<line class="stem" x1="465.8" y1="65.9" x2="465.8" y2="64.1"/>
+<ellipse class="soma" cx="465.8" cy="64.1" rx="1.2" ry="1"/>
+<line class="stem" x1="513.5" y1="66.7" x2="513.5" y2="64.3"/>
+<ellipse class="soma" cx="513.5" cy="64.3" rx="1.2" ry="1"/>
+<line class="stem" x1="437" y1="67.1" x2="437" y2="65.7"/>
+<ellipse class="soma" cx="437" cy="65.7" rx="1.2" ry="1"/>
+<line class="stem" x1="466.9" y1="67.7" x2="466.9" y2="65.6"/>
+<ellipse class="soma" cx="466.9" cy="65.6" rx="1.2" ry="1"/>
+<line class="stem" x1="488" y1="68.8" x2="488" y2="66.7"/>
+<ellipse class="soma" cx="488" cy="66.7" rx="1.2" ry="1"/>
+<line class="stem" x1="489.6" y1="69.8" x2="489.6" y2="68"/>
+<ellipse class="soma" cx="489.6" cy="68" rx="1.2" ry="1"/>
+<line class="stem" x1="447.4" y1="70.3" x2="447.4" y2="68.3"/>
+<ellipse class="soma" cx="447.4" cy="68.3" rx="1.2" ry="1"/>
+<line class="stem" x1="481.1" y1="70.8" x2="481.1" y2="69.5"/>
+<ellipse class="soma" cx="481.1" cy="69.5" rx="1.2" ry="1"/>
+<line class="stem" x1="452.8" y1="71.1" x2="452.8" y2="68.5"/>
+<ellipse class="soma" cx="452.8" cy="68.5" rx="1.2" ry="1"/>
+<line class="stem" x1="472.3" y1="71.8" x2="472.3" y2="69.6"/>
+<ellipse class="soma" cx="472.3" cy="69.6" rx="1.2" ry="1"/>
+<line class="stem" x1="422.8" y1="72.9" x2="422.8" y2="71"/>
+<ellipse class="soma" cx="422.8" cy="71" rx="1.2" ry="1"/>
+<line class="stem" x1="429.3" y1="74.7" x2="429.3" y2="72.8"/>
+<ellipse class="soma" cx="429.3" cy="72.8" rx="1.2" ry="1"/>
+<line class="stem" x1="465.5" y1="75.3" x2="465.5" y2="72.4"/>
+<ellipse class="soma" cx="465.5" cy="72.4" rx="1.2" ry="1"/>
+<line class="stem" x1="507.7" y1="76.4" x2="507.7" y2="75.1"/>
+<ellipse class="soma" cx="507.7" cy="75.1" rx="1.2" ry="1"/>
+<line class="stem" x1="439.1" y1="76.4" x2="439.1" y2="74.1"/>
+<ellipse class="soma" cx="439.1" cy="74.1" rx="1.2" ry="1"/>
+<line class="stem" x1="427.4" y1="77.1" x2="427.4" y2="75.8"/>
+<ellipse class="soma" cx="427.4" cy="75.8" rx="1.2" ry="1"/>
+<line class="stem" x1="508.5" y1="77.6" x2="508.5" y2="75.7"/>
+<ellipse class="soma" cx="508.5" cy="75.7" rx="1.2" ry="1"/>
+<line class="stem" x1="432" y1="78.3" x2="432" y2="75.9"/>
+<ellipse class="soma" cx="432" cy="75.9" rx="1.2" ry="1"/>
+<line class="stem" x1="413.6" y1="78.4" x2="413.6" y2="76.5"/>
+<ellipse class="soma" cx="413.6" cy="76.5" rx="1.2" ry="1"/>
+<line class="stem" x1="493" y1="79" x2="493" y2="77.3"/>
+<ellipse class="soma" cx="493" cy="77.3" rx="1.2" ry="1"/>
+<line class="stem" x1="465.1" y1="79.1" x2="465.1" y2="77.9"/>
+<ellipse class="soma" cx="465.1" cy="77.9" rx="1.2" ry="1"/>
+<line class="stem" x1="516.6" y1="80.2" x2="516.6" y2="78.2"/>
+<ellipse class="soma" cx="516.6" cy="78.2" rx="1.2" ry="1"/>
+<line class="stem" x1="548.7" y1="80.4" x2="548.7" y2="77.6"/>
+<ellipse class="soma" cx="548.7" cy="77.6" rx="1.2" ry="1"/>
+<line class="stem" x1="541.4" y1="80.5" x2="541.4" y2="77.9"/>
+<ellipse class="soma" cx="541.4" cy="77.9" rx="1.2" ry="1"/>
+<line class="stem" x1="503.7" y1="80.8" x2="503.7" y2="79.7"/>
+<ellipse class="soma" cx="503.7" cy="79.7" rx="1.2" ry="1"/>
+<line class="stem" x1="467.7" y1="81.5" x2="467.7" y2="79.3"/>
+<ellipse class="soma" cx="467.7" cy="79.3" rx="1.2" ry="1"/>
+<line class="stem" x1="516" y1="81.7" x2="516" y2="79.4"/>
+<ellipse class="soma" cx="516" cy="79.4" rx="1.2" ry="1"/>
+<line class="stem" x1="420.8" y1="82.9" x2="420.8" y2="80.7"/>
+<ellipse class="soma" cx="420.8" cy="80.7" rx="1.2" ry="1"/>
+<line class="stem" x1="457.6" y1="84" x2="457.6" y2="81.7"/>
+<ellipse class="soma" cx="457.6" cy="81.7" rx="1.2" ry="1"/>
+<line class="stem" x1="482.2" y1="85" x2="482.2" y2="83.6"/>
+<ellipse class="soma" cx="482.2" cy="83.6" rx="1.2" ry="1"/>
+<line class="stem" x1="536.1" y1="85.1" x2="536.1" y2="83.4"/>
+<ellipse class="soma" cx="536.1" cy="83.4" rx="1.2" ry="1"/>
+<line class="stem" x1="526.3" y1="85.5" x2="526.3" y2="83.9"/>
+<ellipse class="soma" cx="526.3" cy="83.9" rx="1.2" ry="1"/>
+<line class="stem" x1="540.1" y1="86" x2="540.1" y2="84.1"/>
+<ellipse class="soma" cx="540.1" cy="84.1" rx="1.2" ry="1"/>
+<line class="stem" x1="523.8" y1="86.8" x2="523.8" y2="84"/>
+<ellipse class="soma" cx="523.8" cy="84" rx="1.2" ry="1"/>
+<line class="stem" x1="432.2" y1="87.2" x2="432.2" y2="84.6"/>
+<ellipse class="soma" cx="432.2" cy="84.6" rx="1.2" ry="1"/>
+<line class="stem" x1="423.9" y1="88.2" x2="423.9" y2="86"/>
+<ellipse class="soma" cx="423.9" cy="86" rx="1.2" ry="1"/>
+<line class="stem" x1="418.3" y1="88.5" x2="418.3" y2="86"/>
+<ellipse class="soma" cx="418.3" cy="86" rx="1.2" ry="1"/>
+<line class="stem" x1="423.3" y1="88.7" x2="423.3" y2="86.2"/>
+<ellipse class="soma" cx="423.3" cy="86.2" rx="1.2" ry="1"/>
+<line class="stem" x1="500.7" y1="89.1" x2="500.7" y2="87.4"/>
+<ellipse class="soma" cx="500.7" cy="87.4" rx="1.2" ry="1"/>
+<line class="stem" x1="527.2" y1="89.5" x2="527.2" y2="88.1"/>
+<ellipse class="soma" cx="527.2" cy="88.1" rx="1.2" ry="1"/>
+<line class="stem" x1="511" y1="89.9" x2="511" y2="88.5"/>
+<ellipse class="soma" cx="511" cy="88.5" rx="1.2" ry="1"/>
+<line class="stem" x1="481.5" y1="90.7" x2="481.5" y2="88.9"/>
+<ellipse class="soma" cx="481.5" cy="88.9" rx="1.2" ry="1"/>
+<line class="stem" x1="453.5" y1="91" x2="453.5" y2="88.3"/>
+<ellipse class="soma" cx="453.5" cy="88.3" rx="1.2" ry="1"/>
+<line class="stem" x1="510.7" y1="91" x2="510.7" y2="88.8"/>
+<ellipse class="soma" cx="510.7" cy="88.8" rx="1.2" ry="1"/>
+<line class="stem" x1="459.9" y1="91.3" x2="459.9" y2="89.6"/>
+<ellipse class="soma" cx="459.9" cy="89.6" rx="1.2" ry="1"/>
+<line class="stem" x1="531.3" y1="91.7" x2="531.3" y2="89.9"/>
+<ellipse class="soma" cx="531.3" cy="89.9" rx="1.2" ry="1"/>
+<line class="stem" x1="459.9" y1="94" x2="459.9" y2="91.3"/>
+<ellipse class="soma" cx="459.9" cy="91.3" rx="1.2" ry="1"/>
+<line class="stem" x1="492.5" y1="94.4" x2="492.5" y2="92.8"/>
+<ellipse class="soma" cx="492.5" cy="92.8" rx="1.2" ry="1"/>
+<line class="stem" x1="446.4" y1="95.8" x2="446.4" y2="94"/>
+<ellipse class="soma" cx="446.4" cy="94" rx="1.2" ry="1"/>
+<line class="stem" x1="502.6" y1="96" x2="502.6" y2="94.4"/>
+<ellipse class="soma" cx="502.6" cy="94.4" rx="1.2" ry="1"/>
+<line class="stem" x1="499.6" y1="96" x2="499.6" y2="94.1"/>
+<ellipse class="soma" cx="499.6" cy="94.1" rx="1.2" ry="1"/>
+<line class="stem" x1="437.7" y1="96.7" x2="437.7" y2="95.5"/>
+<ellipse class="soma" cx="437.7" cy="95.5" rx="1.2" ry="1"/>
+<line class="stem" x1="492.1" y1="96.8" x2="492.1" y2="94.6"/>
+<ellipse class="soma" cx="492.1" cy="94.6" rx="1.2" ry="1"/>
+<line class="stem" x1="428.3" y1="97.9" x2="428.3" y2="95.9"/>
+<ellipse class="soma" cx="428.3" cy="95.9" rx="1.2" ry="1"/>
+<line class="stem" x1="494.7" y1="98.3" x2="494.7" y2="95.8"/>
+<ellipse class="soma" cx="494.7" cy="95.8" rx="1.2" ry="1"/>
+<line class="stem" x1="463.6" y1="98.7" x2="463.6" y2="97.5"/>
+<ellipse class="soma" cx="463.6" cy="97.5" rx="1.2" ry="1"/>
+<line class="stem" x1="471.9" y1="100.1" x2="471.9" y2="98.7"/>
+<ellipse class="soma" cx="471.9" cy="98.7" rx="1.2" ry="1"/>
+<line class="stem" x1="469.8" y1="101.2" x2="469.8" y2="99.9"/>
+<ellipse class="soma" cx="469.8" cy="99.9" rx="1.2" ry="1"/>
+<line class="stem" x1="501.6" y1="101.7" x2="501.6" y2="99.9"/>
+<ellipse class="soma" cx="501.6" cy="99.9" rx="1.2" ry="1"/>
+<line class="stem" x1="464" y1="101.8" x2="464" y2="100.4"/>
+<ellipse class="soma" cx="464" cy="100.4" rx="1.2" ry="1"/>
+<line class="stem" x1="502" y1="104.3" x2="502" y2="101.8"/>
+<ellipse class="soma" cx="502" cy="101.8" rx="1.2" ry="1"/>
+<line class="stem" x1="450.7" y1="104.7" x2="450.7" y2="103.2"/>
+<ellipse class="soma" cx="450.7" cy="103.2" rx="1.2" ry="1"/>
+<line class="stem" x1="465.5" y1="105.8" x2="465.5" y2="103.9"/>
+<ellipse class="soma" cx="465.5" cy="103.9" rx="1.2" ry="1"/>
+<line class="stem" x1="474.8" y1="105.9" x2="474.8" y2="104"/>
+<ellipse class="soma" cx="474.8" cy="104" rx="1.2" ry="1"/>
+<line class="stem" x1="456.6" y1="108" x2="456.6" y2="106.1"/>
+<ellipse class="soma" cx="456.6" cy="106.1" rx="1.2" ry="1"/>
+<line class="stem" x1="484.1" y1="109.7" x2="484.1" y2="107.8"/>
+<ellipse class="soma" cx="484.1" cy="107.8" rx="1.2" ry="1"/>
+<line class="stem" x1="492.8" y1="110.5" x2="492.8" y2="109"/>
+<ellipse class="soma" cx="492.8" cy="109" rx="1.2" ry="1"/>
+<line class="stem" x1="478.1" y1="111.9" x2="478.1" y2="109.8"/>
+<ellipse class="soma" cx="478.1" cy="109.8" rx="1.2" ry="1"/>
+<line class="stem" x1="484.5" y1="111.9" x2="484.5" y2="110.3"/>
+<ellipse class="soma" cx="484.5" cy="110.3" rx="1.2" ry="1"/>
+<line class="stem" x1="462" y1="114" x2="462" y2="112.3"/>
+<ellipse class="soma" cx="462" cy="112.3" rx="1.2" ry="1"/>
+<line class="stem" x1="466.4" y1="118" x2="466.4" y2="115.8"/>
+<ellipse class="soma" cx="466.4" cy="115.8" rx="1.2" ry="1"/>
+<line class="stem" x1="481.4" y1="121.1" x2="481.4" y2="119.6"/>
+<ellipse class="soma" cx="481.4" cy="119.6" rx="1.2" ry="1"/>
+<line class="stem" x1="477.5" y1="122.5" x2="477.5" y2="121.3"/>
+<ellipse class="soma" cx="477.5" cy="121.3" rx="1.2" ry="1"/>
+<line class="stem" x1="475.8" y1="123.3" x2="475.8" y2="121.3"/>
+<ellipse class="soma" cx="475.8" cy="121.3" rx="1.2" ry="1"/><text class="t-lbl" x="475" y="200" text-anchor="middle">DÍA 10</text><text class="t-xs muted" x="475" y="218" text-anchor="middle">se conectan con vecinas</text>
+<polygon class="chip-side" points="747.3,81.5 665,129 665,132.3 747.3,84.8"/>
+<polygon class="chip-side2" points="665,129 582.7,81.5 582.7,84.8 665,132.3"/>
+<polygon class="chip" points="665,34 747.3,81.5 665,129 582.7,81.5"/>
+<polygon class="zone-mirror" points="660.1,45.4 693,64.4 635.4,97.7 602.5,78.7"/>
+<polygon class="zone-motor" points="709.4,69.2 732.5,82.4 707.8,96.7 684.7,83.4"/>
+<polygon class="zone-motor" points="668.3,92.9 691.3,106.2 666.6,120.5 643.6,107.2"/>
+<polygon class="e-mirror" points="659.6,47.2 662.4,48.8 659.6,50.4 656.8,48.8"/>
+<polygon class="e-mirror" points="653.2,50.9 656,52.5 653.2,54.1 650.4,52.5"/>
+<polygon class="e-mirror" points="646.8,54.6 649.6,56.2 646.8,57.8 644,56.2"/>
+<polygon class="e-mirror" points="640.4,58.3 643.2,59.9 640.4,61.5 637.6,59.9"/>
+<polygon class="e-mirror" points="634,62 636.8,63.6 634,65.2 631.2,63.6"/>
+<polygon class="e-mirror" points="627.6,65.7 630.4,67.3 627.6,68.9 624.8,67.3"/>
+<polygon class="e-mirror" points="621.2,69.4 624,71 621.2,72.6 618.4,71"/>
+<polygon class="e-mirror" points="614.8,73.1 617.6,74.7 614.8,76.3 612,74.7"/>
+<polygon class="e-mirror" points="608.4,76.8 611.2,78.4 608.4,80 605.6,78.4"/>
+<polygon class="e-mirror" points="665.1,50.4 667.9,52 665.1,53.6 662.3,52"/>
+<polygon class="e-mirror" points="658.7,54.1 661.5,55.7 658.7,57.3 655.9,55.7"/>
+<polygon class="e-mirror" points="652.3,57.8 655.1,59.4 652.3,61 649.5,59.4"/>
+<polygon class="e-mirror" points="645.9,61.5 648.7,63.1 645.9,64.7 643.1,63.1"/>
+<polygon class="e-mirror" points="639.5,65.2 642.3,66.8 639.5,68.4 636.7,66.8"/>
+<polygon class="e-mirror" points="633.1,68.9 635.9,70.5 633.1,72.1 630.3,70.5"/>
+<polygon class="e-mirror" points="626.7,72.5 629.5,74.2 626.7,75.8 623.9,74.2"/>
+<polygon class="e-mirror" points="620.3,76.2 623.1,77.9 620.3,79.5 617.5,77.9"/>
+<polygon class="e-mirror" points="613.9,79.9 616.7,81.6 613.9,83.2 611.1,81.6"/>
+<polygon class="e-mirror" points="670.6,53.5 673.4,55.2 670.6,56.8 667.8,55.2"/>
+<polygon class="e-mirror" points="664.2,57.2 667,58.9 664.2,60.5 661.4,58.9"/>
+<polygon class="e-mirror" points="657.8,60.9 660.6,62.6 657.8,64.2 655,62.6"/>
+<polygon class="e-mirror" points="651.4,64.6 654.2,66.2 651.4,67.9 648.6,66.2"/>
+<polygon class="e-mirror" points="645,68.3 647.8,69.9 645,71.6 642.2,69.9"/>
+<polygon class="e-mirror" points="638.6,72 641.4,73.6 638.6,75.3 635.8,73.6"/>
+<polygon class="e-mirror" points="632.2,75.7 635,77.3 632.2,78.9 629.4,77.3"/>
+<polygon class="e-mirror" points="625.8,79.4 628.6,81 625.8,82.6 623,81"/>
+<polygon class="e-mirror" points="619.4,83.1 622.2,84.7 619.4,86.3 616.6,84.7"/>
+<polygon class="e-mirror" points="676.1,56.7 678.9,58.3 676.1,59.9 673.3,58.3"/>
+<polygon class="e-mirror" points="669.7,60.4 672.5,62 669.7,63.6 666.9,62"/>
+<polygon class="e-mirror" points="663.3,64.1 666.1,65.7 663.3,67.3 660.5,65.7"/>
+<polygon class="e-mirror" points="656.9,67.8 659.7,69.4 656.9,71 654.1,69.4"/>
+<polygon class="e-mirror" points="650.5,71.5 653.3,73.1 650.5,74.7 647.7,73.1"/>
+<polygon class="e-mirror" points="644.1,75.2 646.9,76.8 644.1,78.4 641.3,76.8"/>
+<polygon class="e-mirror" points="637.7,78.9 640.5,80.5 637.7,82.1 634.9,80.5"/>
+<polygon class="e-mirror" points="631.3,82.6 634.1,84.2 631.3,85.8 628.5,84.2"/>
+<polygon class="e-mirror" points="624.9,86.3 627.7,87.9 624.9,89.5 622.1,87.9"/>
+<polygon class="e-mirror" points="681.5,59.9 684.3,61.5 681.5,63.1 678.7,61.5"/>
+<polygon class="e-mirror" points="675.1,63.6 677.9,65.2 675.1,66.8 672.3,65.2"/>
+<polygon class="e-mirror" points="668.7,67.3 671.5,68.9 668.7,70.5 666,68.9"/>
+<polygon class="e-mirror" points="662.3,71 665.1,72.6 662.3,74.2 659.6,72.6"/>
+<polygon class="e-mirror" points="656,74.7 658.7,76.3 656,77.9 653.2,76.3"/>
+<polygon class="e-mirror" points="649.6,78.4 652.3,80 649.6,81.6 646.8,80"/>
+<polygon class="e-mirror" points="643.2,82 645.9,83.7 643.2,85.3 640.4,83.7"/>
+<polygon class="e-mirror" points="636.8,85.7 639.6,87.4 636.8,89 634,87.4"/>
+<polygon class="e-mirror" points="630.4,89.4 633.2,91.1 630.4,92.7 627.6,91.1"/>
+<polygon class="e-mirror" points="687,63 689.8,64.7 687,66.3 684.2,64.7"/>
+<polygon class="e-mirror" points="680.6,66.7 683.4,68.4 680.6,70 677.8,68.4"/>
+<polygon class="e-mirror" points="674.2,70.4 677,72.1 674.2,73.7 671.4,72.1"/>
+<polygon class="e-mirror" points="667.8,74.1 670.6,75.7 667.8,77.4 665,75.7"/>
+<polygon class="e-mirror" points="661.4,77.8 664.2,79.4 661.4,81.1 658.6,79.4"/>
+<polygon class="e-mirror" points="655,81.5 657.8,83.1 655,84.8 652.2,83.1"/>
+<polygon class="e-mirror" points="648.6,85.2 651.4,86.8 648.6,88.4 645.8,86.8"/>
+<polygon class="e-mirror" points="642.2,88.9 645,90.5 642.2,92.1 639.4,90.5"/>
+<polygon class="e-mirror" points="635.8,92.6 638.6,94.2 635.8,95.8 633,94.2"/>
+<path class="fil" d="M613.9,86 Q613.6,83.4 613.3,86.2" stroke-width="0.5"/>
+<path class="fil" d="M613.9,86 Q611.1,82.9 608.3,86" stroke-width="0.6"/>
+<path class="fil" d="M613.9,86 Q618.1,81.9 622.2,84.6" stroke-width="0.8"/>
+<path class="fil" d="M613.9,86 Q612.4,80 610.8,80.7" stroke-width="0.7"/>
+<path class="fil" d="M731.4,77.9 Q735.1,74.5 738.7,77.6" stroke-width="0.9"/>
+<path class="fil" d="M731.4,77.9 Q728.8,76.9 726.1,83.4" stroke-width="1"/>
+<path class="fil" d="M731.4,77.9 Q730.7,77.3 730.1,84.1" stroke-width="0.5"/>
+<path class="fil" d="M731.4,77.9 Q723.9,76.3 716.3,83.9" stroke-width="0.9"/>
+<path class="fil" d="M688.3,54.6 Q685.6,51.7 682.9,55.1" stroke-width="0.4"/>
+<path class="fil" d="M688.3,54.6 Q688.6,52.8 688.8,59.1" stroke-width="1.1"/>
+<path class="fil" d="M688.3,54.6 Q689.8,54.3 691.4,61.1" stroke-width="0.5"/>
+<path class="fil" d="M688.3,54.6 Q691.4,53.3 694.5,60.4" stroke-width="0.7"/>
+<path class="fil" d="M665.8,121.3 Q666.7,118.2 667.5,121.3" stroke-width="0.3"/>
+<path class="fil" d="M665.8,121.3 Q668.6,117.1 671.4,119.6" stroke-width="1"/>
+<path class="fil" d="M665.8,121.3 Q661.1,114.8 656.4,115.8" stroke-width="0.5"/>
+<path class="fil" d="M665.8,121.3 Q667,111.2 668.1,109.8" stroke-width="0.5"/>
+<path class="fil" d="M657.7,79.3 Q656.4,75.3 655.1,77.9" stroke-width="0.5"/>
+<path class="fil" d="M657.7,79.3 Q656.6,72.1 655.5,72.4" stroke-width="0.9"/>
+<path class="fil" d="M657.7,79.3 Q652.7,76.9 647.6,81.7" stroke-width="0.5"/>
+<path class="fil" d="M657.7,79.3 Q665,77.2 672.2,83.6" stroke-width="0.3"/>
+<path class="fil" d="M664.8,104 Q660.1,100.7 655.5,103.9" stroke-width="0.6"/>
+<path class="fil" d="M664.8,104 Q662.3,98.4 659.8,99.9" stroke-width="0.7"/>
+<path class="fil" d="M664.8,104 Q663.4,97.7 661.9,98.7" stroke-width="1"/>
+<path class="fil" d="M664.8,104 Q666.5,103.3 668.1,109.8" stroke-width="1.1"/>
+<path class="fil" d="M636.4,94 Q632,91.2 627.7,95.5" stroke-width="0.9"/>
+<path class="fil" d="M636.4,94 Q639.9,87.3 643.5,88.3" stroke-width="0.7"/>
+<path class="fil" d="M636.4,94 Q643.2,88.5 649.9,91.3" stroke-width="1"/>
+<path class="fil" d="M636.4,94 Q643.2,87.9 649.9,89.6" stroke-width="0.5"/>
+<path class="fil" d="M694.5,60.4 Q692.9,57.6 691.4,61.1" stroke-width="0.3"/>
+<path class="fil" d="M694.5,60.4 Q691.7,56.7 688.8,59.1" stroke-width="0.6"/>
+<path class="fil" d="M694.5,60.4 Q689.4,57.9 684.3,63.4" stroke-width="1.1"/>
+<path class="fil" d="M694.5,60.4 Q699,58.9 703.5,64.3" stroke-width="0.8"/>
+<path class="fil" d="M701,88.5 Q700.9,85.7 700.7,88.8" stroke-width="0.7"/>
+<path class="fil" d="M701,88.5 Q695.8,84.4 690.7,87.4" stroke-width="0.6"/>
+<path class="fil" d="M701,88.5 Q696.8,87.7 692.6,94.4" stroke-width="0.4"/>
+<path class="fil" d="M701,88.5 Q707.4,81.8 713.8,84" stroke-width="1.1"/>
+<path class="fil" d="M730.1,84.1 Q728.1,80.8 726.1,83.4" stroke-width="0.5"/>
+<path class="fil" d="M730.1,84.1 Q734.4,76.8 738.7,77.6" stroke-width="0.3"/>
+<path class="fil" d="M730.1,84.1 Q725.7,83.3 721.3,89.9" stroke-width="0.9"/>
+<path class="fil" d="M691.4,61.1 Q690.1,56.8 688.8,59.1" stroke-width="1.1"/>
+<path class="fil" d="M691.4,61.1 Q687.8,59 684.3,63.4" stroke-width="0.3"/>
+<path class="fil" d="M653.6,97.5 Q653.8,95.9 654,100.4" stroke-width="0.8"/>
+<path class="fil" d="M653.6,97.5 Q656.7,95.5 659.8,99.9" stroke-width="0.7"/>
+<path class="fil" d="M653.6,97.5 Q657.7,94.8 661.9,98.7" stroke-width="0.8"/>
+<path class="fil" d="M653.6,97.5 Q651.8,90.4 649.9,91.3" stroke-width="1.2"/>
+<path class="fil" d="M640.7,103.2 Q643.7,101.3 646.6,106.1" stroke-width="0.4"/>
+<path class="fil" d="M640.7,103.2 Q647.4,97.9 654,100.4" stroke-width="0.5"/>
+<path class="fil" d="M640.7,103.2 Q648.1,99.6 655.5,103.9" stroke-width="0.7"/>
+<path class="fil" d="M640.7,103.2 Q638.6,94.5 636.4,94" stroke-width="0.4"/>
+<path class="fil" d="M683,77.3 Q688.3,74.8 693.7,79.7" stroke-width="0.9"/>
+<path class="fil" d="M683,77.3 Q677.6,76.5 672.2,83.6" stroke-width="0.8"/>
+<path class="fil" d="M683,77.3 Q690.3,72.1 697.7,75.1" stroke-width="1.1"/>
+<path class="fil" d="M683,77.3 Q690.7,72.5 698.5,75.7" stroke-width="0.3"/>
+<path class="fil" d="M649.9,89.6 Q649.9,87.1 649.9,91.3" stroke-width="0.6"/>
+<path class="fil" d="M649.9,89.6 Q646.7,85.5 643.5,88.3" stroke-width="0.5"/>
+<path class="fil" d="M649.9,89.6 Q648.8,81.7 647.6,81.7" stroke-width="0.3"/>
+<path class="fil" d="M649.9,89.6 Q651.7,89.7 653.6,97.5" stroke-width="0.8"/>
+<path class="fil" d="M610.8,80.7 Q609.5,79.8 608.3,86" stroke-width="0.7"/>
+<path class="fil" d="M610.8,80.7 Q612,79.9 613.3,86.2" stroke-width="0.3"/>
+<path class="fil" d="M610.8,80.7 Q607.2,75 603.6,76.5" stroke-width="0.6"/>
+<path class="fil" d="M618.3,95.9 Q623,92 627.7,95.5" stroke-width="0.3"/>
+<path class="fil" d="M618.3,95.9 Q615.8,86.7 613.3,86.2" stroke-width="0.9"/>
+<path class="fil" d="M618.3,95.9 Q616.1,86.8 613.9,86" stroke-width="0.4"/>
+<path class="fil" d="M618.3,95.9 Q627.3,90.7 636.4,94" stroke-width="0.3"/>
+<path class="fil" d="M659.3,54 Q653,48.3 646.7,50.4" stroke-width="1.1"/>
+<path class="fil" d="M659.3,54 Q657.5,54.6 655.8,64.1" stroke-width="0.6"/>
+<path class="fil" d="M659.3,54 Q650.9,48.1 642.5,51.2" stroke-width="1.2"/>
+<path class="fil" d="M659.3,54 Q658.1,55.2 656.9,65.6" stroke-width="0.3"/>
+<path class="fil" d="M672.2,83.6 Q671.8,82.7 671.5,88.9" stroke-width="0.3"/>
+<path class="fil" d="M672.2,83.6 Q677.3,83.8 682.5,92.8" stroke-width="0.8"/>
+<path class="fil" d="M684.3,63.4 Q686.6,57.4 688.8,59.1" stroke-width="0.5"/>
+<path class="fil" d="M684.3,63.4 Q680.2,57.5 676.1,59.5" stroke-width="0.9"/>
+<path class="fil" d="M684.3,63.4 Q681.2,61.3 678,66.7" stroke-width="0.6"/>
+<path class="fil" d="M659.8,99.9 Q660.9,96.6 661.9,98.7" stroke-width="0.8"/>
+<path class="fil" d="M659.8,99.9 Q656.9,97.1 654,100.4" stroke-width="0.8"/>
+<path class="fil" d="M659.8,99.9 Q657.7,98.4 655.5,103.9" stroke-width="1.1"/>
+<path class="fil" d="M649.9,91.3 Q646.7,86.6 643.5,88.3" stroke-width="0.9"/>
+<path class="fil" d="M662.3,69.6 Q659.6,64.3 656.9,65.6" stroke-width="1.2"/>
+<path class="fil" d="M662.3,69.6 Q666.7,65.8 671.1,69.5" stroke-width="0.3"/>
+<path class="fil" d="M662.3,69.6 Q658.9,67.4 655.5,72.4" stroke-width="1.2"/>
+<path class="fil" d="M662.3,69.6 Q659.1,63.1 655.8,64.1" stroke-width="0.6"/>
+<path class="fil" d="M689.6,94.1 Q691.1,91.3 692.6,94.4" stroke-width="0.5"/>
+<path class="fil" d="M689.6,94.1 Q687.1,91.6 684.7,95.8" stroke-width="0.5"/>
+<path class="fil" d="M689.6,94.1 Q686,90.1 682.5,92.8" stroke-width="1.1"/>
+<path class="fil" d="M689.6,94.1 Q685.8,91.1 682.1,94.6" stroke-width="1.2"/>
+<path class="fil" d="M652,112.3 Q654.2,110.6 656.4,115.8" stroke-width="0.5"/>
+<path class="fil" d="M652,112.3 Q649.3,105.6 646.6,106.1" stroke-width="0.9"/>
+<path class="fil" d="M652,112.3 Q653.8,104.2 655.5,103.9" stroke-width="0.8"/>
+<path class="fil" d="M652,112.3 Q660.1,106.8 668.1,109.8" stroke-width="0.4"/>
+<path class="fil" d="M716.3,83.9 Q715.1,80.7 713.8,84" stroke-width="0.4"/>
+<path class="fil" d="M716.3,83.9 Q716.7,82.8 717.2,88.1" stroke-width="0.7"/>
+<path class="fil" d="M716.3,83.9 Q721.2,80.3 726.1,83.4" stroke-width="1.1"/>
+<path class="fil" d="M716.3,83.9 Q718.8,83.2 721.3,89.9" stroke-width="0.3"/>
+<path class="fil" d="M682.8,109 Q678.7,106.4 674.5,110.3" stroke-width="1.1"/>
+<path class="fil" d="M682.8,109 Q678.4,105 674.1,107.8" stroke-width="0.8"/>
+<path class="fil" d="M682.8,109 Q687.4,101.1 692,101.8" stroke-width="1"/>
+<path class="fil" d="M682.8,109 Q675.4,105.3 668.1,109.8" stroke-width="0.7"/>
+<path class="fil" d="M646.7,50.4 Q644.6,47.7 642.5,51.2" stroke-width="0.9"/>
+<path class="fil" d="M646.7,50.4 Q640.5,48.1 634.3,53.3" stroke-width="0.3"/>
+<path class="fil" d="M646.7,50.4 Q637,49.7 627.4,58.6" stroke-width="1.1"/>
+<path class="fil" d="M706.6,78.2 Q706.3,76 706,79.4" stroke-width="0.4"/>
+<path class="fil" d="M706.6,78.2 Q702.5,73.6 698.5,75.7" stroke-width="0.9"/>
+<path class="fil" d="M706.6,78.2 Q702.1,72.8 697.7,75.1" stroke-width="0.3"/>
+<path class="fil" d="M706.6,78.2 Q700.1,74.9 693.7,79.7" stroke-width="0.7"/>
+<path class="fil" d="M690.7,87.4 Q695.7,84.4 700.7,88.8" stroke-width="0.9"/>
+<path class="fil" d="M690.7,87.4 Q690.1,87 689.6,94.1" stroke-width="0.8"/>
+<path class="fil" d="M690.7,87.4 Q691.7,87.3 692.6,94.4" stroke-width="0.6"/>
+<path class="fil" d="M676.1,59.5 Q679.5,53.4 682.9,55.1" stroke-width="0.8"/>
+<path class="fil" d="M676.1,59.5 Q677.1,59.3 678,66.7" stroke-width="0.4"/>
+<path class="fil" d="M676.1,59.5 Q682.5,55.6 688.8,59.1" stroke-width="0.4"/>
+<path class="fil" d="M629.1,74.1 Q625.6,71.8 622,75.9" stroke-width="0.6"/>
+<path class="fil" d="M629.1,74.1 Q624.2,69.8 619.3,72.8" stroke-width="0.3"/>
+<path class="fil" d="M629.1,74.1 Q623.2,70.9 617.4,75.8" stroke-width="0.7"/>
+<path class="fil" d="M629.1,74.1 Q633.2,67.3 637.4,68.3" stroke-width="1"/>
+<path class="fil" d="M678,66.7 Q678.8,64.6 679.6,68" stroke-width="1.1"/>
+<path class="fil" d="M678,66.7 Q674.6,64.6 671.1,69.5" stroke-width="0.8"/>
+<path class="fil" d="M682.9,55.1 Q685.9,53.3 688.8,59.1" stroke-width="0.8"/>
+<path class="fil" d="M682.9,55.1 Q687.1,54.3 691.4,61.1" stroke-width="0.9"/>
+<path class="fil" d="M643.5,88.3 Q645.5,81.3 647.6,81.7" stroke-width="0.2"/>
+<path class="fil" d="M706,79.4 Q702.3,74 698.5,75.7" stroke-width="1.1"/>
+<path class="fil" d="M706,79.4 Q709.9,77.9 713.8,84" stroke-width="0.7"/>
+<path class="fil" d="M706,79.4 Q711.2,77.7 716.3,83.9" stroke-width="0.7"/>
+<path class="fil" d="M703.5,64.3 Q697.4,58.4 691.4,61.1" stroke-width="1"/>
+<path class="fil" d="M703.5,64.3 Q696.2,57.5 688.8,59.1" stroke-width="0.6"/>
+<path class="fil" d="M703.5,64.3 Q700.6,65 697.7,75.1" stroke-width="0.7"/>
+<path class="fil" d="M684.7,95.8 Q683.4,92.2 682.1,94.6" stroke-width="0.8"/>
+<path class="fil" d="M684.7,95.8 Q683.6,90.7 682.5,92.8" stroke-width="0.3"/>
+<path class="fil" d="M684.7,95.8 Q688.7,91.3 692.6,94.4" stroke-width="1"/>
+<path class="fil" d="M612.8,71 Q616,68.8 619.3,72.8" stroke-width="1"/>
+<path class="fil" d="M612.8,71 Q615.1,69.9 617.4,75.8" stroke-width="1.2"/>
+<path class="fil" d="M612.8,71 Q617.4,69.5 622,75.9" stroke-width="1.1"/>
+<path class="fil" d="M612.8,71 Q608.2,70.1 603.6,76.5" stroke-width="0.8"/>
+<path class="fil" d="M671.4,119.6 Q669.4,117.5 667.5,121.3" stroke-width="0.9"/>
+<path class="fil" d="M671.4,119.6 Q663.9,113.4 656.4,115.8" stroke-width="1.1"/>
+<path class="fil" d="M671.4,119.6 Q672.9,110.9 674.5,110.3" stroke-width="0.7"/>
+<path class="fil" d="M622.2,84.6 Q617.7,82.1 613.3,86.2" stroke-width="0.6"/>
+<path class="fil" d="M622.2,84.6 Q616.5,78.8 610.8,80.7" stroke-width="0.6"/>
+<path class="fil" d="M622.2,84.6 Q615.2,81.5 608.3,86" stroke-width="0.8"/>
+<path class="fil" d="M667.5,121.3 Q661.9,114.4 656.4,115.8" stroke-width="1.1"/>
+<path class="fil" d="M667.5,121.3 Q667.8,110.9 668.1,109.8" stroke-width="1"/>
+<path class="fil" d="M713.8,84 Q715.5,82.4 717.2,88.1" stroke-width="1"/>
+<path class="fil" d="M713.8,84 Q717.6,83 721.3,89.9" stroke-width="0.8"/>
+<path class="fil" d="M613.3,86.2 Q610.8,83.2 608.3,86" stroke-width="0.3"/>
+<path class="fil" d="M671.5,88.9 Q677,87.2 682.5,92.8" stroke-width="0.6"/>
+<path class="fil" d="M671.5,88.9 Q676.8,87.7 682.1,94.6" stroke-width="0.7"/>
+<path class="fil" d="M671.5,88.9 Q678.1,87.7 684.7,95.8" stroke-width="0.6"/>
+<path class="fil" d="M677,45.9 Q674.7,40.4 672.4,41.5" stroke-width="0.7"/>
+<path class="fil" d="M677,45.9 Q680,46.1 682.9,55.1" stroke-width="0.6"/>
+<path class="fil" d="M677,45.9 Q682.7,46 688.3,54.6" stroke-width="0.3"/>
+<path class="fil" d="M677,45.9 Q668.2,44.4 659.3,54" stroke-width="0.9"/>
+<path class="fil" d="M617.4,75.8 Q618.3,71.2 619.3,72.8" stroke-width="0.3"/>
+<path class="fil" d="M617.4,75.8 Q619.7,72.4 622,75.9" stroke-width="0.5"/>
+<path class="fil" d="M655.5,72.4 Q655.3,71.3 655.1,77.9" stroke-width="0.9"/>
+<path class="fil" d="M655.5,72.4 Q656.2,65 656.9,65.6" stroke-width="1"/>
+<path class="fil" d="M637.4,68.3 Q640.1,65.1 642.8,68.5" stroke-width="0.8"/>
+<path class="fil" d="M637.4,68.3 Q632.2,63.2 627,65.7" stroke-width="0.5"/>
+<path class="fil" d="M637.4,68.3 Q633.6,60.3 629.8,60.6" stroke-width="1.1"/>
+<path class="fil" d="M655.1,77.9 Q651.4,75.7 647.6,81.7" stroke-width="1.1"/>
+<path class="fil" d="M655.1,77.9 Q658.7,69.4 662.3,69.6" stroke-width="0.3"/>
+<path class="fil" d="M698.5,75.7 Q698.1,72.5 697.7,75.1" stroke-width="0.3"/>
+<path class="fil" d="M698.5,75.7 Q696.1,74.3 693.7,79.7" stroke-width="0.8"/>
+<path class="fil" d="M622,75.9 Q620.7,71 619.3,72.8" stroke-width="0.3"/>
+<path class="fil" d="M627,65.7 Q628.4,59.4 629.8,60.6" stroke-width="0.6"/>
+<path class="fil" d="M627,65.7 Q626.8,60.5 626.5,61.5" stroke-width="0.9"/>
+<path class="fil" d="M627,65.7 Q627.2,58.3 627.4,58.6" stroke-width="0.5"/>
+<path class="fil" d="M700.7,88.8 Q696.7,87.7 692.6,94.4" stroke-width="1.2"/>
+<path class="fil" d="M700.7,88.8 Q695.2,87.5 689.6,94.1" stroke-width="0.4"/>
+<path class="fil" d="M679.6,68 Q675.4,65.3 671.1,69.5" stroke-width="0.6"/>
+<path class="fil" d="M679.6,68 Q682,62.1 684.3,63.4" stroke-width="1.1"/>
+<path class="fil" d="M679.6,68 Q677.9,59.6 676.1,59.5" stroke-width="0.9"/>
+<path class="fil" d="M693.7,79.7 Q695.7,74.1 697.7,75.1" stroke-width="0.3"/>
+<path class="fil" d="M693.7,79.7 Q699.9,75.4 706,79.4" stroke-width="0.8"/>
+<path class="fil" d="M682.1,94.6 Q682.3,90.7 682.5,92.8" stroke-width="1.1"/>
+<path class="fil" d="M682.1,94.6 Q687.4,90.8 692.6,94.4" stroke-width="0.5"/>
+<path class="fil" d="M682.5,92.8 Q687.6,90.2 692.6,94.4" stroke-width="0.5"/>
+<path class="fil" d="M642.5,51.2 Q638.4,48.7 634.3,53.3" stroke-width="0.3"/>
+<path class="fil" d="M642.5,51.2 Q634.9,50.4 627.4,58.6" stroke-width="0.9"/>
+<path class="fil" d="M629.8,60.6 Q628.2,57.7 626.5,61.5" stroke-width="1"/>
+<path class="fil" d="M629.8,60.6 Q628.6,56.6 627.4,58.6" stroke-width="0.7"/>
+<path class="fil" d="M629.8,60.6 Q632.1,53.2 634.3,53.3" stroke-width="1"/>
+<path class="fil" d="M627.7,95.5 Q624.9,85.3 622.2,84.6" stroke-width="0.4"/>
+<path class="fil" d="M627.7,95.5 Q635.6,87 643.5,88.3" stroke-width="0.3"/>
+<path class="fil" d="M721.3,89.9 Q719.3,85.8 717.2,88.1" stroke-width="0.6"/>
+<path class="fil" d="M721.3,89.9 Q723.7,82.9 726.1,83.4" stroke-width="1.2"/>
+<path class="fil" d="M717.2,88.1 Q721.7,82.1 726.1,83.4" stroke-width="1.2"/>
+<path class="fil" d="M626.5,61.5 Q626.9,56.9 627.4,58.6" stroke-width="1.1"/>
+<path class="fil" d="M626.5,61.5 Q630.4,53 634.3,53.3" stroke-width="1"/>
+<path class="fil" d="M646.6,106.1 Q651,101.7 655.5,103.9" stroke-width="1.1"/>
+<path class="fil" d="M646.6,106.1 Q650.3,99.4 654,100.4" stroke-width="0.4"/>
+<path class="fil" d="M603.6,76.5 Q610.5,72.1 617.4,75.8" stroke-width="0.9"/>
+<path class="fil" d="M603.6,76.5 Q611.4,70.6 619.3,72.8" stroke-width="0.3"/>
+<path class="fil" d="M627.4,58.6 Q630.8,52.4 634.3,53.3" stroke-width="1"/>
+<path class="fil" d="M656.9,65.6 Q656.4,62 655.8,64.1" stroke-width="0.7"/>
+<path class="fil" d="M656.9,65.6 Q664,63.3 671.1,69.5" stroke-width="1"/>
+<path class="fil" d="M656.4,115.8 Q662.3,108.8 668.1,109.8" stroke-width="0.5"/>
+<path class="fil" d="M672.4,41.5 Q677.6,43.2 682.9,55.1" stroke-width="0.9"/>
+<path class="fil" d="M692,101.8 Q691.8,97.7 691.6,99.9" stroke-width="0.7"/>
+<path class="fil" d="M692,101.8 Q688.4,95.1 684.7,95.8" stroke-width="0.9"/>
+<path class="fil" d="M692,101.8 Q692.3,93.8 692.6,94.4" stroke-width="0.4"/>
+<path class="fil" d="M661.9,98.7 Q658,96.3 654,100.4" stroke-width="0.4"/>
+<path class="fil" d="M697.7,75.1 Q701.9,73.1 706,79.4" stroke-width="0.6"/>
+<path class="fil" d="M691.6,99.9 Q688.2,94.2 684.7,95.8" stroke-width="1"/>
+<path class="fil" d="M691.6,99.9 Q692.1,93.7 692.6,94.4" stroke-width="0.3"/>
+<path class="fil" d="M691.6,99.9 Q690.6,93.5 689.6,94.1" stroke-width="0.5"/>
+<path class="fil" d="M668.1,109.8 Q671.3,106.8 674.5,110.3" stroke-width="0.4"/>
+<path class="fil" d="M668.1,109.8 Q671.1,105.6 674.1,107.8" stroke-width="0.4"/>
+<path class="fil" d="M674.5,110.3 Q674.3,106.1 674.1,107.8" stroke-width="0.9"/>
+<path class="fil" d="M674.5,110.3 Q669.7,103.3 664.8,104" stroke-width="0.3"/>
+<path class="fil" d="M738.7,77.6 Q732.4,76.1 726.1,83.4" stroke-width="0.3"/>
+<path class="fil" d="M738.7,77.6 Q727.5,75.4 716.3,83.9" stroke-width="0.3"/>
+<path class="fil" d="M642.8,68.5 Q649.2,66.6 655.5,72.4" stroke-width="0.4"/>
+<path class="fil" d="M642.8,68.5 Q649.9,62.9 656.9,65.6" stroke-width="0.4"/>
+<path class="fil" d="M642.8,68.5 Q649.3,62 655.8,64.1" stroke-width="0.6"/>
+<path class="fil" d="M655.8,64.1 Q655.7,63.8 655.5,72.4" stroke-width="0.3"/>
+<path class="fil" d="M655.5,103.9 Q654.8,98.9 654,100.4" stroke-width="0.8"/>
+<path class="fil" d="M674.1,107.8 Q669.4,102.4 664.8,104" stroke-width="0.9"/>
+<line class="stem" x1="672.4" y1="43" x2="672.4" y2="41.5"/>
+<ellipse class="soma" cx="672.4" cy="41.5" rx="1.2" ry="1"/>
+<line class="stem" x1="677" y1="47.1" x2="677" y2="45.9"/>
+<ellipse class="soma" cx="677" cy="45.9" rx="1.2" ry="1"/>
+<line class="stem" x1="646.7" y1="52.9" x2="646.7" y2="50.4"/>
+<ellipse class="soma" cx="646.7" cy="50.4" rx="1.2" ry="1"/>
+<line class="stem" x1="642.5" y1="53.2" x2="642.5" y2="51.2"/>
+<ellipse class="soma" cx="642.5" cy="51.2" rx="1.2" ry="1"/>
+<line class="stem" x1="634.3" y1="55.9" x2="634.3" y2="53.3"/>
+<ellipse class="soma" cx="634.3" cy="53.3" rx="1.2" ry="1"/>
+<line class="stem" x1="688.3" y1="55.9" x2="688.3" y2="54.6"/>
+<ellipse class="soma" cx="688.3" cy="54.6" rx="1.2" ry="1"/>
+<line class="stem" x1="659.3" y1="56.7" x2="659.3" y2="54"/>
+<ellipse class="soma" cx="659.3" cy="54" rx="1.2" ry="1"/>
+<line class="stem" x1="682.9" y1="56.9" x2="682.9" y2="55.1"/>
+<ellipse class="soma" cx="682.9" cy="55.1" rx="1.2" ry="1"/>
+<line class="stem" x1="627.4" y1="61" x2="627.4" y2="58.6"/>
+<ellipse class="soma" cx="627.4" cy="58.6" rx="1.2" ry="1"/>
+<line class="stem" x1="688.8" y1="61.8" x2="688.8" y2="59.1"/>
+<ellipse class="soma" cx="688.8" cy="59.1" rx="1.2" ry="1"/>
+<line class="stem" x1="676.1" y1="62.2" x2="676.1" y2="59.5"/>
+<ellipse class="soma" cx="676.1" cy="59.5" rx="1.2" ry="1"/>
+<line class="stem" x1="691.4" y1="62.5" x2="691.4" y2="61.1"/>
+<ellipse class="soma" cx="691.4" cy="61.1" rx="1.2" ry="1"/>
+<line class="stem" x1="694.5" y1="62.9" x2="694.5" y2="60.4"/>
+<ellipse class="soma" cx="694.5" cy="60.4" rx="1.2" ry="1"/>
+<line class="stem" x1="626.5" y1="62.9" x2="626.5" y2="61.5"/>
+<ellipse class="soma" cx="626.5" cy="61.5" rx="1.2" ry="1"/>
+<line class="stem" x1="629.8" y1="63.3" x2="629.8" y2="60.6"/>
+<ellipse class="soma" cx="629.8" cy="60.6" rx="1.2" ry="1"/>
+<line class="stem" x1="684.3" y1="64.6" x2="684.3" y2="63.4"/>
+<ellipse class="soma" cx="684.3" cy="63.4" rx="1.2" ry="1"/>
+<line class="stem" x1="655.8" y1="65.9" x2="655.8" y2="64.1"/>
+<ellipse class="soma" cx="655.8" cy="64.1" rx="1.2" ry="1"/>
+<line class="stem" x1="703.5" y1="66.7" x2="703.5" y2="64.3"/>
+<ellipse class="soma" cx="703.5" cy="64.3" rx="1.2" ry="1"/>
+<line class="stem" x1="627" y1="67.1" x2="627" y2="65.7"/>
+<ellipse class="soma" cx="627" cy="65.7" rx="1.2" ry="1"/>
+<line class="stem" x1="656.9" y1="67.7" x2="656.9" y2="65.6"/>
+<ellipse class="soma" cx="656.9" cy="65.6" rx="1.2" ry="1"/>
+<line class="stem" x1="678" y1="68.8" x2="678" y2="66.7"/>
+<ellipse class="soma" cx="678" cy="66.7" rx="1.2" ry="1"/>
+<line class="stem" x1="679.6" y1="69.8" x2="679.6" y2="68"/>
+<ellipse class="soma" cx="679.6" cy="68" rx="1.2" ry="1"/>
+<line class="stem" x1="637.4" y1="70.3" x2="637.4" y2="68.3"/>
+<ellipse class="soma" cx="637.4" cy="68.3" rx="1.2" ry="1"/>
+<line class="stem" x1="671.1" y1="70.8" x2="671.1" y2="69.5"/>
+<ellipse class="soma" cx="671.1" cy="69.5" rx="1.2" ry="1"/>
+<line class="stem" x1="642.8" y1="71.1" x2="642.8" y2="68.5"/>
+<ellipse class="soma" cx="642.8" cy="68.5" rx="1.2" ry="1"/>
+<line class="stem" x1="662.3" y1="71.8" x2="662.3" y2="69.6"/>
+<ellipse class="soma" cx="662.3" cy="69.6" rx="1.2" ry="1"/>
+<line class="stem" x1="612.8" y1="72.9" x2="612.8" y2="71"/>
+<ellipse class="soma" cx="612.8" cy="71" rx="1.2" ry="1"/>
+<line class="stem" x1="619.3" y1="74.7" x2="619.3" y2="72.8"/>
+<ellipse class="soma" cx="619.3" cy="72.8" rx="1.2" ry="1"/>
+<line class="stem" x1="655.5" y1="75.3" x2="655.5" y2="72.4"/>
+<ellipse class="soma" cx="655.5" cy="72.4" rx="1.2" ry="1"/>
+<line class="stem" x1="697.7" y1="76.4" x2="697.7" y2="75.1"/>
+<ellipse class="soma" cx="697.7" cy="75.1" rx="1.2" ry="1"/>
+<line class="stem" x1="629.1" y1="76.4" x2="629.1" y2="74.1"/>
+<ellipse class="soma" cx="629.1" cy="74.1" rx="1.2" ry="1"/>
+<line class="stem" x1="617.4" y1="77.1" x2="617.4" y2="75.8"/>
+<ellipse class="soma" cx="617.4" cy="75.8" rx="1.2" ry="1"/>
+<line class="stem" x1="698.5" y1="77.6" x2="698.5" y2="75.7"/>
+<ellipse class="soma" cx="698.5" cy="75.7" rx="1.2" ry="1"/>
+<line class="stem" x1="622" y1="78.3" x2="622" y2="75.9"/>
+<ellipse class="soma" cx="622" cy="75.9" rx="1.2" ry="1"/>
+<line class="stem" x1="603.6" y1="78.4" x2="603.6" y2="76.5"/>
+<ellipse class="soma" cx="603.6" cy="76.5" rx="1.2" ry="1"/>
+<line class="stem" x1="683" y1="79" x2="683" y2="77.3"/>
+<ellipse class="soma" cx="683" cy="77.3" rx="1.2" ry="1"/>
+<line class="stem" x1="655.1" y1="79.1" x2="655.1" y2="77.9"/>
+<ellipse class="soma" cx="655.1" cy="77.9" rx="1.2" ry="1"/>
+<line class="stem" x1="706.6" y1="80.2" x2="706.6" y2="78.2"/>
+<ellipse class="soma" cx="706.6" cy="78.2" rx="1.2" ry="1"/>
+<line class="stem" x1="738.7" y1="80.4" x2="738.7" y2="77.6"/>
+<ellipse class="soma" cx="738.7" cy="77.6" rx="1.2" ry="1"/>
+<line class="stem" x1="731.4" y1="80.5" x2="731.4" y2="77.9"/>
+<ellipse class="soma" cx="731.4" cy="77.9" rx="1.2" ry="1"/>
+<line class="stem" x1="693.7" y1="80.8" x2="693.7" y2="79.7"/>
+<ellipse class="soma" cx="693.7" cy="79.7" rx="1.2" ry="1"/>
+<line class="stem" x1="657.7" y1="81.5" x2="657.7" y2="79.3"/>
+<ellipse class="soma" cx="657.7" cy="79.3" rx="1.2" ry="1"/>
+<line class="stem" x1="706" y1="81.7" x2="706" y2="79.4"/>
+<ellipse class="soma" cx="706" cy="79.4" rx="1.2" ry="1"/>
+<line class="stem" x1="610.8" y1="82.9" x2="610.8" y2="80.7"/>
+<ellipse class="soma" cx="610.8" cy="80.7" rx="1.2" ry="1"/>
+<line class="stem" x1="647.6" y1="84" x2="647.6" y2="81.7"/>
+<ellipse class="soma" cx="647.6" cy="81.7" rx="1.2" ry="1"/>
+<line class="stem" x1="672.2" y1="85" x2="672.2" y2="83.6"/>
+<ellipse class="soma" cx="672.2" cy="83.6" rx="1.2" ry="1"/>
+<line class="stem" x1="726.1" y1="85.1" x2="726.1" y2="83.4"/>
+<ellipse class="soma" cx="726.1" cy="83.4" rx="1.2" ry="1"/>
+<line class="stem" x1="716.3" y1="85.5" x2="716.3" y2="83.9"/>
+<ellipse class="soma" cx="716.3" cy="83.9" rx="1.2" ry="1"/>
+<line class="stem" x1="730.1" y1="86" x2="730.1" y2="84.1"/>
+<ellipse class="soma" cx="730.1" cy="84.1" rx="1.2" ry="1"/>
+<line class="stem" x1="713.8" y1="86.8" x2="713.8" y2="84"/>
+<ellipse class="soma" cx="713.8" cy="84" rx="1.2" ry="1"/>
+<line class="stem" x1="622.2" y1="87.2" x2="622.2" y2="84.6"/>
+<ellipse class="soma" cx="622.2" cy="84.6" rx="1.2" ry="1"/>
+<line class="stem" x1="613.9" y1="88.2" x2="613.9" y2="86"/>
+<ellipse class="soma" cx="613.9" cy="86" rx="1.2" ry="1"/>
+<line class="stem" x1="608.3" y1="88.5" x2="608.3" y2="86"/>
+<ellipse class="soma" cx="608.3" cy="86" rx="1.2" ry="1"/>
+<line class="stem" x1="613.3" y1="88.7" x2="613.3" y2="86.2"/>
+<ellipse class="soma" cx="613.3" cy="86.2" rx="1.2" ry="1"/>
+<line class="stem" x1="690.7" y1="89.1" x2="690.7" y2="87.4"/>
+<ellipse class="soma" cx="690.7" cy="87.4" rx="1.2" ry="1"/>
+<line class="stem" x1="717.2" y1="89.5" x2="717.2" y2="88.1"/>
+<ellipse class="soma" cx="717.2" cy="88.1" rx="1.2" ry="1"/>
+<line class="stem" x1="701" y1="89.9" x2="701" y2="88.5"/>
+<ellipse class="soma" cx="701" cy="88.5" rx="1.2" ry="1"/>
+<line class="stem" x1="671.5" y1="90.7" x2="671.5" y2="88.9"/>
+<ellipse class="soma" cx="671.5" cy="88.9" rx="1.2" ry="1"/>
+<line class="stem" x1="643.5" y1="91" x2="643.5" y2="88.3"/>
+<ellipse class="soma" cx="643.5" cy="88.3" rx="1.2" ry="1"/>
+<line class="stem" x1="700.7" y1="91" x2="700.7" y2="88.8"/>
+<ellipse class="soma" cx="700.7" cy="88.8" rx="1.2" ry="1"/>
+<line class="stem" x1="649.9" y1="91.3" x2="649.9" y2="89.6"/>
+<ellipse class="soma" cx="649.9" cy="89.6" rx="1.2" ry="1"/>
+<line class="stem" x1="721.3" y1="91.7" x2="721.3" y2="89.9"/>
+<ellipse class="soma" cx="721.3" cy="89.9" rx="1.2" ry="1"/>
+<line class="stem" x1="649.9" y1="94" x2="649.9" y2="91.3"/>
+<ellipse class="soma" cx="649.9" cy="91.3" rx="1.2" ry="1"/>
+<line class="stem" x1="682.5" y1="94.4" x2="682.5" y2="92.8"/>
+<ellipse class="soma" cx="682.5" cy="92.8" rx="1.2" ry="1"/>
+<line class="stem" x1="636.4" y1="95.8" x2="636.4" y2="94"/>
+<ellipse class="soma" cx="636.4" cy="94" rx="1.2" ry="1"/>
+<line class="stem" x1="692.6" y1="96" x2="692.6" y2="94.4"/>
+<ellipse class="soma" cx="692.6" cy="94.4" rx="1.2" ry="1"/>
+<line class="stem" x1="689.6" y1="96" x2="689.6" y2="94.1"/>
+<ellipse class="soma" cx="689.6" cy="94.1" rx="1.2" ry="1"/>
+<line class="stem" x1="627.7" y1="96.7" x2="627.7" y2="95.5"/>
+<ellipse class="soma" cx="627.7" cy="95.5" rx="1.2" ry="1"/>
+<line class="stem" x1="682.1" y1="96.8" x2="682.1" y2="94.6"/>
+<ellipse class="soma" cx="682.1" cy="94.6" rx="1.2" ry="1"/>
+<line class="stem" x1="618.3" y1="97.9" x2="618.3" y2="95.9"/>
+<ellipse class="soma" cx="618.3" cy="95.9" rx="1.2" ry="1"/>
+<line class="stem" x1="684.7" y1="98.3" x2="684.7" y2="95.8"/>
+<ellipse class="soma" cx="684.7" cy="95.8" rx="1.2" ry="1"/>
+<line class="stem" x1="653.6" y1="98.7" x2="653.6" y2="97.5"/>
+<ellipse class="soma" cx="653.6" cy="97.5" rx="1.2" ry="1"/>
+<line class="stem" x1="661.9" y1="100.1" x2="661.9" y2="98.7"/>
+<ellipse class="soma" cx="661.9" cy="98.7" rx="1.2" ry="1"/>
+<line class="stem" x1="659.8" y1="101.2" x2="659.8" y2="99.9"/>
+<ellipse class="soma" cx="659.8" cy="99.9" rx="1.2" ry="1"/>
+<line class="stem" x1="691.6" y1="101.7" x2="691.6" y2="99.9"/>
+<ellipse class="soma" cx="691.6" cy="99.9" rx="1.2" ry="1"/>
+<line class="stem" x1="654" y1="101.8" x2="654" y2="100.4"/>
+<ellipse class="soma" cx="654" cy="100.4" rx="1.2" ry="1"/>
+<line class="stem" x1="692" y1="104.3" x2="692" y2="101.8"/>
+<ellipse class="soma" cx="692" cy="101.8" rx="1.2" ry="1"/>
+<line class="stem" x1="640.7" y1="104.7" x2="640.7" y2="103.2"/>
+<ellipse class="soma" cx="640.7" cy="103.2" rx="1.2" ry="1"/>
+<line class="stem" x1="655.5" y1="105.8" x2="655.5" y2="103.9"/>
+<ellipse class="soma" cx="655.5" cy="103.9" rx="1.2" ry="1"/>
+<line class="stem" x1="664.8" y1="105.9" x2="664.8" y2="104"/>
+<ellipse class="soma" cx="664.8" cy="104" rx="1.2" ry="1"/>
+<line class="stem" x1="646.6" y1="108" x2="646.6" y2="106.1"/>
+<ellipse class="soma" cx="646.6" cy="106.1" rx="1.2" ry="1"/>
+<line class="stem" x1="674.1" y1="109.7" x2="674.1" y2="107.8"/>
+<ellipse class="soma" cx="674.1" cy="107.8" rx="1.2" ry="1"/>
+<line class="stem" x1="682.8" y1="110.5" x2="682.8" y2="109"/>
+<ellipse class="soma" cx="682.8" cy="109" rx="1.2" ry="1"/>
+<line class="stem" x1="668.1" y1="111.9" x2="668.1" y2="109.8"/>
+<ellipse class="soma" cx="668.1" cy="109.8" rx="1.2" ry="1"/>
+<line class="stem" x1="674.5" y1="111.9" x2="674.5" y2="110.3"/>
+<ellipse class="soma" cx="674.5" cy="110.3" rx="1.2" ry="1"/>
+<line class="stem" x1="652" y1="114" x2="652" y2="112.3"/>
+<ellipse class="soma" cx="652" cy="112.3" rx="1.2" ry="1"/>
+<line class="stem" x1="656.4" y1="118" x2="656.4" y2="115.8"/>
+<ellipse class="soma" cx="656.4" cy="115.8" rx="1.2" ry="1"/>
+<line class="stem" x1="671.4" y1="121.1" x2="671.4" y2="119.6"/>
+<ellipse class="soma" cx="671.4" cy="119.6" rx="1.2" ry="1"/>
+<line class="stem" x1="667.5" y1="122.5" x2="667.5" y2="121.3"/>
+<ellipse class="soma" cx="667.5" cy="121.3" rx="1.2" ry="1"/>
+<line class="stem" x1="665.8" y1="123.3" x2="665.8" y2="121.3"/>
+<ellipse class="soma" cx="665.8" cy="121.3" rx="1.2" ry="1"/><text class="t-lbl" x="665" y="200" text-anchor="middle">DÍA 21</text><text class="t-xs muted" x="665" y="218" text-anchor="middle">red densa, lista para jugar</text><line class="arrow" x1="176" y1="96" x2="196" y2="96" marker-end="url(#ah)"/><line class="arrow" x1="366" y1="96" x2="386" y2="96" marker-end="url(#ah)"/><line class="arrow" x1="556" y1="96" x2="576" y2="96" marker-end="url(#ah)"/></svg></div>
+      <figcaption>Timelapse de las semanas antes de jugar. Las conexiones solo crecen entre neuronas cercanas.</figcaption>
+    </figure>
+    <div class="body">
+      <p>Esto sí es físico y se ve en un microscopio: las neuronas sueltas extienden prolongaciones y se unen con las vecinas. En el timelapse, tres semanas pasarían en unos segundos.</p>
+    </div>
+  </section>
+
+  <section class="fig">
+    <div class="fig-head"><span class="step">4</span><h2>Después, juega y las conexiones cambian</h2></div>
+    <figure>
+      <div class="svg-scroll"><svg viewBox="0 0 760 190" role="img" aria-label="Una misma conexión entre una neurona sensorial y una motora: fina al principio, gruesa después de aciertos, y fina otra vez después de fallos."><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker><marker id="ah-acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-acc"/></marker></defs><path class="fil" d="M52,70 Q126.66666666666667,20 201.33333333333334,70" stroke-width="1.4"/><line class="dend" x1="40" y1="70" x2="55.3" y2="74.7"/><line class="dend" x1="40" y1="70" x2="40.3" y2="94"/><line class="dend" x1="40" y1="70" x2="24.9" y2="75.2"/><line class="dend" x1="40" y1="70" x2="25.6" y2="50.8"/><line class="dend" x1="40" y1="70" x2="49.2" y2="56.9"/><ellipse class="soma" cx="40" cy="70" rx="13" ry="10"/><line class="dend" x1="213.33333333333334" y1="70" x2="198" y2="74.7"/><line class="dend" x1="213.33333333333334" y1="70" x2="213" y2="94"/><line class="dend" x1="213.33333333333334" y1="70" x2="228.5" y2="75.2"/><line class="dend" x1="213.33333333333334" y1="70" x2="227.7" y2="50.8"/><line class="dend" x1="213.33333333333334" y1="70" x2="204.1" y2="56.9"/><ellipse class="soma" cx="213.33333333333334" cy="70" rx="13" ry="10"/><text class="t-xs muted" x="40" y="106" text-anchor="middle">sensorial</text><text class="t-xs muted" x="213.33333333333334" y="106" text-anchor="middle">motora</text><text class="t-lbl" x="126.66666666666667" y="146" text-anchor="middle">MINUTO 0</text><text class="t-xs " x="126.66666666666667" y="164" text-anchor="middle">conexión débil</text>
+<path class="fil-strong" d="M305.33333333333337,70 Q380,20 454.6666666666667,70" stroke-width="6"/><line class="dend" x1="293.33333333333337" y1="70" x2="308.6" y2="74.7"/><line class="dend" x1="293.33333333333337" y1="70" x2="293.7" y2="94"/><line class="dend" x1="293.33333333333337" y1="70" x2="278.2" y2="75.2"/><line class="dend" x1="293.33333333333337" y1="70" x2="279" y2="50.8"/><line class="dend" x1="293.33333333333337" y1="70" x2="302.6" y2="56.9"/><ellipse class="soma" cx="293.33333333333337" cy="70" rx="13" ry="10"/><line class="dend" x1="466.6666666666667" y1="70" x2="451.4" y2="74.7"/><line class="dend" x1="466.6666666666667" y1="70" x2="466.3" y2="94"/><line class="dend" x1="466.6666666666667" y1="70" x2="481.8" y2="75.2"/><line class="dend" x1="466.6666666666667" y1="70" x2="481" y2="50.8"/><line class="dend" x1="466.6666666666667" y1="70" x2="457.4" y2="56.9"/><ellipse class="soma" cx="466.6666666666667" cy="70" rx="13" ry="10"/><text class="t-xs muted" x="293.33333333333337" y="106" text-anchor="middle">sensorial</text><text class="t-xs muted" x="466.6666666666667" y="106" text-anchor="middle">motora</text><text class="t-lbl" x="380" y="146" text-anchor="middle">DESPUÉS DE ACIERTOS</text><text class="t-xs acc" x="380" y="164" text-anchor="middle">estímulo ordenado: se refuerza</text>
+<path class="fil" d="M558.6666666666667,70 Q633.3333333333334,20 708,70" stroke-width="0.8"/><line class="dend" x1="546.6666666666667" y1="70" x2="562" y2="74.7"/><line class="dend" x1="546.6666666666667" y1="70" x2="547" y2="94"/><line class="dend" x1="546.6666666666667" y1="70" x2="531.5" y2="75.2"/><line class="dend" x1="546.6666666666667" y1="70" x2="532.3" y2="50.8"/><line class="dend" x1="546.6666666666667" y1="70" x2="555.9" y2="56.9"/><ellipse class="soma" cx="546.6666666666667" cy="70" rx="13" ry="10"/><line class="dend" x1="720" y1="70" x2="704.7" y2="74.7"/><line class="dend" x1="720" y1="70" x2="719.7" y2="94"/><line class="dend" x1="720" y1="70" x2="735.1" y2="75.2"/><line class="dend" x1="720" y1="70" x2="734.4" y2="50.8"/><line class="dend" x1="720" y1="70" x2="710.8" y2="56.9"/><ellipse class="soma" cx="720" cy="70" rx="13" ry="10"/><text class="t-xs muted" x="546.6666666666667" y="106" text-anchor="middle">sensorial</text><text class="t-xs muted" x="720" y="106" text-anchor="middle">motora</text><text class="t-lbl" x="633.3333333333334" y="146" text-anchor="middle">DESPUÉS DE FALLOS</text><text class="t-xs " x="633.3333333333334" y="164" text-anchor="middle">ruido: se debilita</text></svg></div>
+      <figcaption>La misma conexión en tres momentos del juego.</figcaption>
+    </figure>
+    <div class="body">
+      <p>Cuando la paleta acierta llega el estímulo ordenado, y las conexiones que acaban de participar se refuerzan. Cuando falla llega el ruido, y se debilitan. En la simulación, el grosor de cada filamento va a seguir esa fuerza en vivo.</p>
+      <p class="flag">El grosor es una forma de mostrar la fuerza. En un cultivo real, al aprender casi no cambia el grosor del filamento: cambia la sinapsis, el punto de contacto, que es demasiado chico para verlo así.</p>
+    </div>
+  </section>
+
+  <section class="decide">
+    <h2>Para confirmar antes de programar</h2>
+    <ol>
+      <li><strong>Resolución del espejo.</strong> En el dibujo son 6 × 9 electrodos. Más electrodos dan una imagen más fiel, pero el cultivo tarda más en aprender.</li>
+      <li><strong>La paleta en el espejo.</strong> Propongo que se vea, porque sin saber dónde está su paleta las neuronas no pueden saber si subir o bajar. El experimento original no la mostraba.</li>
+      <li><strong>Dónde van las zonas motoras.</strong> En el dibujo están al otro lado de la placa, así el camino de la pelota a la paleta tiene que cruzar la red y se ve.</li>
+    </ol>
+  </section>
+</div>
