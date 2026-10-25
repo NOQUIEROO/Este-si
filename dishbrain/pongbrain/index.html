@@ -124,6 +124,27 @@ button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
 </div>
 
 <script>
+  // si algo falla, decirlo en pantalla en vez de quedar en blanco
+  (function () {
+    function show(msg) {
+      var el = document.getElementById('loading'); if (!el) return;
+      el.hidden = false; el.style.color = '#7a1c0c'; el.style.padding = '24px'; el.style.textAlign = 'center';
+      el.textContent = 'No se pudo mostrar el aparato: ' + msg;
+    }
+    window.__showError = show;
+    window.addEventListener('error', function (e) {
+      if (e.target && e.target !== window) {   // un archivo que no cargó
+        var u = e.target.src || e.target.href || '';
+        if (/engine\.js$/.test(u) || /fonts\./.test(u)) return;   // engine.js tiene otra ubicación de respaldo; las fuentes no son imprescindibles
+        return show('no cargó ' + u);
+      }
+      show(e.message || 'error desconocido');
+    }, true);
+    window.addEventListener('unhandledrejection', function (e) { show((e.reason && (e.reason.message || e.reason)) + ''); });
+    setTimeout(function () { var el = document.getElementById('loading'); if (el && !el.hidden && !window.__started) show('tardó más de 40 segundos en cargar. Probá recargar la página.'); }, 40000);
+  })();
+</script>
+<script>
   // engine.js vive junto a la página publicada; en el repo, una carpeta más arriba
   (function () {
     var s = document.createElement('script'); s.src = 'engine.js';
@@ -156,7 +177,9 @@ const LID_TRAVEL = 0.058, MOD_TRAVEL = 0.0185;
 
 // ---------- escena
 const canvas = $('#view');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true }); }
+catch (e) { window.__showError('este navegador no tiene gráficos 3D (WebGL) activados.'); throw e; }
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 renderer.toneMapping = THREE.AgXToneMapping || THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
@@ -294,6 +317,25 @@ const san = (n) => THREE.PropertyBinding.sanitizeNodeName(n);
 const get = (n) => root.getObjectByName(san(n));
 root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
 get('electrodo bajo la pelota') && (get('electrodo bajo la pelota').visible = false);
+{
+  const PX0 = -0.0346, PX1 = 0.0346, PY0 = -0.069, PY1 = 0.0379, PZ0 = 0.00123, PZ1 = 0.00235, PITCH = 0.00078;
+  const cols = Math.round((PX1 - PX0) / PITCH), rows = Math.round((PY1 - PY0) / PITCH), cell = 10;
+  const cv = document.createElement('canvas'); cv.width = rows * cell; cv.height = cols * cell;   // u sigue a y, v sigue a x
+  const g = cv.getContext('2d');
+  g.fillStyle = '#245f10'; g.fillRect(0, 0, cv.width, cv.height);
+  g.fillStyle = '#d6d6d0';
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) g.fillRect(r * cell + 3, c * cell + 3, 4, 4);
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  const top = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45, metalness: 0.15, bumpMap: tex, bumpScale: 0.6 });
+  const side = new THREE.MeshStandardMaterial({ color: 0x505050, roughness: 0.5 });
+  // caja en coordenadas de three: x = x de Blender, y = z, z = −y
+  const geo = new THREE.BoxGeometry(PX1 - PX0, PZ1 - PZ0, PY1 - PY0);
+  const plate = new THREE.Mesh(geo, [side, side, top, side, side, side]);
+  plate.position.copy(B((PX0 + PX1) / 2, (PY0 + PY1) / 2, (PZ0 + PZ1) / 2));
+  plate.receiveShadow = true; scene.add(plate);
+  // la cara de arriba de BoxGeometry tiene u a lo largo de x y v a lo largo de z: rotar la textura 90° para que la grilla calce
+  tex.center.set(0.5, 0.5); tex.rotation = Math.PI / 2;
+}
 // vidrio ahumado de la pantalla
 const glass = get('tapa vidrio');
 if (glass) glass.material = new THREE.MeshPhysicalMaterial({ color: 0x1d2025, roughness: 0.12, metalness: 0, transparent: true, opacity: 0.32, clearcoat: 0.3, clearcoatRoughness: 0.1, envMapIntensity: 0.15, depthWrite: false });
@@ -513,6 +555,7 @@ function frame(now) {
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
+window.__started = true;
 drawScore(0, 0); drawLcd([]); updatePaths(0);
 requestAnimationFrame(frame);
 </script>
