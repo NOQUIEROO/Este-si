@@ -23,3 +23,17 @@ Resultado típico del experimento completo: solo la condición **Estímulo**
 mejora (≈0,3 → 1,4 golpes por rally); Silencio, Sin feedback y Reposo quedan
 planas. La regla de aprendizaje es una hipótesis del modelo, no un mecanismo
 medido en el paper.
+
+## PongBrain en 3D (`pongbrain/`)
+
+El aparato diseñado en Blender, animado en el navegador con el mismo motor
+(`engine.js`). La pantalla de vidrio se desliza hacia arriba y la botonera
+SUBE/BAJA hacia la izquierda, para ver las neuronas que sienten la pelota y las
+que manejan los botones. El grosor de los filamentos que van de las neuronas
+sensoriales a las motoras sigue la fuerza de esas conexiones en el modelo.
+
+- `pongbrain.gltf.json`: el aparato exportado de Blender (glTF con los datos embebidos).
+- `filamentos.json`: las trayectorias de los filamentos sobre la placa.
+
+Servilo desde la carpeta `dishbrain/` (`python3 -m http.server`) y abrí
+`/pongbrain/`.

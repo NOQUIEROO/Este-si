@@ -1,0 +1,491 @@
+<meta charset="utf-8">
+<title>PongBrain</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: estudio fotográfico. El aparato ocupa toda la pantalla; los controles flotan en una barra abajo, como una consola de laboratorio. Un solo tema (gris de estudio), elegido a propósito. */
+:root {
+  --studio: #b9b9bb;
+  --panel: rgba(246, 244, 240, 0.92);
+  --ink: #1d1b1f;
+  --muted: #5d5960;
+  --line: rgba(29, 27, 31, 0.12);
+  --cobalt: #1f4fd1;
+  --lime: #9bd31a;
+  --tomato: #d9431f;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+html, body { height: 100%; }
+body { margin: 0; background: var(--studio); color: var(--ink); font-family: var(--f-body); overflow: hidden; }
+#view { position: fixed; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+.top {
+  position: fixed; top: env(safe-area-inset-top, 0px); left: 0; right: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 14px 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; pointer-events: none;
+}
+.brand { display: grid; gap: 2px; }
+.brand h1 { margin: 0; font: 700 1.5rem/1 var(--f-display); letter-spacing: -0.02em; }
+.brand p { margin: 0; color: var(--muted); font-size: 0.85rem; max-width: 46ch; }
+.chip {
+  pointer-events: auto; font: 600 0.74rem var(--f-mono); letter-spacing: 0.04em; padding: 5px 10px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--line); white-space: nowrap;
+}
+.chip[data-phase="predecible"] { background: var(--lime); border-color: transparent; }
+.chip[data-phase="impredecible"] { background: var(--ink); color: #f6f4f0; border-color: transparent; }
+.chip[data-phase="silencio"] { border-style: dashed; }
+.bar {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 calc(14px + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+.console {
+  pointer-events: auto; margin: 0 auto; max-width: 1100px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; backdrop-filter: blur(8px);
+}
+.group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.label { font: 600 0.68rem var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+button {
+  font: 700 0.84rem var(--f-body); color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 8px;
+  padding: 7px 11px; cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+button[aria-pressed="true"] { background: var(--ink); color: #f6f4f0; border-color: var(--ink); }
+button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+.stats { display: flex; gap: 16px; margin-left: auto; }
+.stat { display: grid; gap: 0; }
+.stat b { font: 600 1.05rem var(--f-mono); font-variant-numeric: tabular-nums; }
+.key { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font-size: 0.78rem; border-top: 1px solid var(--line); padding-top: 8px; }
+.key span { display: inline-flex; gap: 6px; align-items: center; }
+.key i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+#loading[hidden] { display: none; }
+#loading {
+  position: fixed; inset: 0; display: grid; place-items: center; font: 600 0.9rem var(--f-mono); color: var(--muted); pointer-events: none;
+}
+@media (max-width: 640px) {
+  .brand p { display: none; }
+  .stats { margin-left: 0; }
+  .console { gap: 8px 10px; }
+}
+</style>
+
+<canvas id="view" aria-label="El aparato PongBrain en 3D. Arrastrá para girar, pellizcá o usá la rueda para acercar."></canvas>
+<div id="loading">cargando el aparato…</div>
+
+<header class="top">
+  <div class="brand">
+    <h1>PongBrain</h1>
+    <p>Neuronas sobre una placa de electrodos juegan Pong. La paleta lima la mueven ellas, con los botones SUBE y BAJA.</p>
+  </div>
+  <span class="chip" id="phase" data-phase="juego">jugando</span>
+</header>
+
+<div class="bar">
+  <div class="console" role="group" aria-label="Controles">
+    <div class="group">
+      <span class="label">Abrir</span>
+      <button type="button" id="openLid" aria-pressed="false">Pantalla</button>
+      <button type="button" id="openMod" aria-pressed="false">Botonera</button>
+    </div>
+    <div class="group" id="conds">
+      <span class="label">Condición</span>
+      <button type="button" data-cond="estimulo" aria-pressed="true">Estímulo</button>
+      <button type="button" data-cond="silencio" aria-pressed="false">Silencio</button>
+      <button type="button" data-cond="sinfeedback" aria-pressed="false">Sin feedback</button>
+      <button type="button" data-cond="reposo" aria-pressed="false">Reposo</button>
+    </div>
+    <div class="group" id="speeds">
+      <span class="label">Velocidad</span>
+      <button type="button" data-speed="1" aria-pressed="false">1×</button>
+      <button type="button" data-speed="4" aria-pressed="true">4×</button>
+      <button type="button" data-speed="16" aria-pressed="false">16×</button>
+    </div>
+    <div class="group" id="views">
+      <span class="label">Vista</span>
+      <button type="button" data-view="top">Arriba</button>
+      <button type="button" data-view="hero">3/4</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="label">Tiempo</span><b id="sTime">0:00</b></div>
+      <div class="stat"><span class="label">Golpes/rally</span><b id="sHits">–</b></div>
+    </div>
+    <div class="key">
+      <span><i style="background:#ffd27a"></i>neurona brillando = está disparando</span>
+      <span><i style="background:#eae0b0"></i>grosor del filamento = fuerza de la conexión (lo calcula el modelo; no se puede medir en un plato real)</span>
+      <span><i style="background:#fff"></i>punto que viaja = señal en camino</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  // engine.js vive junto a la página publicada; en el repo, una carpeta más arriba
+  (function () {
+    var s = document.createElement('script'); s.src = 'engine.js';
+    s.onerror = function () { var t = document.createElement('script'); t.src = '../engine.js'; document.head.appendChild(t); };
+    document.head.appendChild(s);
+  })();
+</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
+
+const $ = (s) => document.querySelector(s);
+const waitEngine = () => new Promise((ok) => { const t = setInterval(() => { if (window.DishBrain) { clearInterval(t); ok(); } }, 30); });
+
+// Blender (z arriba) → three (y arriba)
+const B = (x, y, z) => new THREE.Vector3(x, z, -y);
+const W0 = -0.0346, W1 = 0.0346;               // la cancha en x de Blender (−x = arriba en pantalla)
+const Y_PAD = -0.03945, Y_ADV = 0.03085;       // centros de las paletas en y de Blender
+const BALL_R = 0.0026, PAD_T = 0.0024;
+const LID_TRAVEL = 0.058, MOD_TRAVEL = 0.0185;
+
+// ---------- escena
+const canvas = $('#view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.toneMapping = THREE.AgXToneMapping || THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xb9b9bb);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+scene.environmentIntensity = 0.55;
+const camera = new THREE.PerspectiveCamera(32, 1, 0.002, 5);
+camera.up.set(-1, 0, 0);                        // en la vista de arriba, −x de Blender queda arriba
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.target.set(0, 0, 0.003);
+controls.minDistance = 0.06; controls.maxDistance = 0.8;
+
+const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.copy(B(-0.25, -0.2, 0.35)); key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048); Object.assign(key.shadow.camera, { left: -0.15, right: 0.15, top: 0.15, bottom: -0.15, near: 0.05, far: 1 });
+key.shadow.bias = -0.0002; key.shadow.radius = 6; scene.add(key);
+const fill = new THREE.DirectionalLight(0xe8eeff, 0.6); fill.position.copy(B(0.3, 0.1, 0.2)); scene.add(fill);
+// piso de estudio
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(3, 3), new THREE.MeshStandardMaterial({ color: 0xb4b4b6, roughness: 0.9 }));
+floor.rotation.x = -Math.PI / 2; floor.position.y = -0.0178; floor.receiveShadow = true; scene.add(floor);
+// la luz de las neuronas: una lámina en el borde superior, desde la botonera hasta el arco del adversario, mirando hacia abajo
+RectAreaLightUniformsLib.init();
+const sheet = new THREE.RectAreaLight(0xf2ffe8, 24, 0.106, 0.0034);
+sheet.position.copy(B(W0 + 0.0011, -0.0153, 0.005)); sheet.lookAt(B(1, -0.0153, 0.005)); scene.add(sheet);
+
+function uiInsets() {
+  const top = document.querySelector('.top').getBoundingClientRect().bottom;
+  const con = document.querySelector('.console').getBoundingClientRect();
+  return { top, bottom: window.innerHeight - con.top };
+}
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h;
+  // centrar el aparato en el espacio libre entre el título y la consola
+  const ui = uiInsets(); camera.setViewOffset(w, h, 0, (ui.bottom - ui.top) / 2, w, h);
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', () => { resize(); if (!viewAnim && currentView === 'top') { fitTop(); setView('top', true); } }); resize();
+
+const VIEWS = {
+  top: { pos: B(0.0, -0.01, 0.42), up: new THREE.Vector3(-1, 0, 0), target: B(0, -0.01, 0.003) },
+  hero: { pos: B(0.23, -0.25, 0.19), up: new THREE.Vector3(0, 1, 0), target: B(-0.004, -0.008, 0.0) },
+};
+let viewAnim = null, currentView = 'top';
+function setView(name, instant) {
+  const v = VIEWS[name]; currentView = name;
+  const from = { pos: camera.position.clone(), up: camera.up.clone(), target: controls.target.clone() };
+  if (instant) { camera.position.copy(v.pos); camera.up.copy(v.up); controls.target.copy(v.target); camera.lookAt(v.target); return; }
+  viewAnim = { from, to: v, t: 0 };
+}
+function fitTop() {
+  // que el aparato entero entre en pantalla en la vista de arriba, también en un teléfono
+  const ui = uiInsets(), availH = Math.max(120, window.innerHeight - ui.top - ui.bottom);
+  const aspect = window.innerWidth / availH;
+  const needW = 0.205, needH = 0.125;
+  const vfov = THREE.MathUtils.degToRad(camera.fov);
+  const k = window.innerHeight / availH;   // la cámara ve toda la altura; el aparato tiene que entrar en el hueco libre
+  const dH = k * (needH / 2) / Math.tan(vfov / 2), dW = (needW / 2) / (Math.tan(vfov / 2) * (window.innerWidth / window.innerHeight));
+  VIEWS.top.pos = B(0.012, -0.004, Math.max(dH, dW) * 1.04);
+  VIEWS.top.target = B(0.012, -0.004, 0.003);
+}
+
+// ---------- texturas que dibuja la simulación (puntaje y evolución)
+const dotCanvas = document.createElement('canvas'); dotCanvas.width = 320; dotCanvas.height = 112;
+const dotTex = new THREE.CanvasTexture(dotCanvas); dotTex.colorSpace = THREE.SRGBColorSpace;
+const lcdCanvas = document.createElement('canvas'); lcdCanvas.width = 96; lcdCanvas.height = 60;
+const lcdTex = new THREE.CanvasTexture(lcdCanvas); lcdTex.magFilter = THREE.NearestFilter; lcdTex.minFilter = THREE.NearestFilter; lcdTex.colorSpace = THREE.SRGBColorSpace;
+const FONT = { '0': ['###', '#.#', '#.#', '#.#', '###'], '1': ['.#.', '##.', '.#.', '.#.', '###'], '2': ['###', '..#', '###', '#..', '###'], '3': ['###', '..#', '###', '..#', '###'], '4': ['#.#', '#.#', '###', '..#', '..#'], '5': ['###', '#..', '###', '..#', '###'], '6': ['###', '#..', '###', '#.#', '###'], '7': ['###', '..#', '.#.', '.#.', '.#.'], '8': ['###', '#.#', '###', '#.#', '###'], '9': ['###', '#.#', '###', '..#', '###'], ':': ['...', '.#.', '...', '.#.', '...'] };
+function drawScore(a, b) {
+  const s = String(Math.min(99, a)).padStart(2, '0') + ':' + String(Math.min(99, b)).padStart(2, '0');
+  let cols = []; for (const ch of s) { cols.push(...FONT[ch].map((r) => r)); }
+  const g = dotCanvas.getContext('2d'); g.fillStyle = '#120a06'; g.fillRect(0, 0, 320, 112);
+  const W = s.length * 4 + 1, cell = 320 / W, rows = 7, ch = 112 / rows;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < W; c++) {
+    let on = false;
+    if (r >= 1 && r <= 5 && c >= 1) { const k = Math.floor((c - 1) / 4), x = (c - 1) % 4; if (k < s.length && x < 3) on = FONT[s[k]][r - 1][x] === '#'; }
+    g.fillStyle = on ? '#ff8a1f' : '#2a160b';
+    g.beginPath(); g.arc((c + 0.5) * cell, (r + 0.5) * ch, Math.min(cell, ch) * 0.36, 0, Math.PI * 2); g.fill();
+  }
+  dotTex.needsUpdate = true;
+}
+function drawLcd(series) {
+  const g = lcdCanvas.getContext('2d'); g.fillStyle = '#8ca86a'; g.fillRect(0, 0, 96, 60);
+  const ink = '#1a2412', dim = '#5d7744';
+  g.fillStyle = ink; g.fillRect(4, 4, 1, 52); g.fillRect(4, 55, 88, 1);
+  const n = series.length; if (!n) { g.fillStyle = dim; g.fillRect(8, 50, 2, 2); lcdTex.needsUpdate = true; return; }
+  const max = Math.max(2, ...series), last = series.slice(-14), w = 84 / Math.max(6, last.length);
+  last.forEach((v, i) => { const h = Math.round((v / max) * 44); g.fillStyle = dim; g.fillRect(Math.round(8 + i * w), 54 - h, Math.max(2, Math.round(w) - 2), h); });
+  g.fillStyle = ink;
+  let px = null, py = null;
+  last.forEach((v, i) => {
+    const x = Math.round(8 + i * w + w / 2), y = 54 - Math.round((v / max) * 44);
+    if (px !== null) { const steps = Math.max(Math.abs(x - px), Math.abs(y - py)); for (let k = 0; k <= steps; k++) g.fillRect(Math.round(px + (x - px) * k / steps), Math.round(py + (y - py) * k / steps), 2, 2); }
+    px = x; py = y;
+  });
+  if (px !== null && last.length > 1 && last[last.length - 1] >= last[last.length - 2]) { g.fillRect(px - 3, py, 4, 2); g.fillRect(px, py, 2, 5); }
+  lcdTex.needsUpdate = true;
+}
+
+// ---------- carga del aparato
+await waitEngine();
+const DB = window.DishBrain; DB.PARAMS.paddleHalf = 0.18;    // el largo de la paleta del diseño
+const gltf = await new GLTFLoader().loadAsync('pongbrain.gltf.json', (e) => { if (e.total) $('#loading').textContent = 'cargando el aparato… ' + Math.round(100 * e.loaded / e.total) + '%'; });
+$('#loading').hidden = true;
+const root = gltf.scene; scene.add(root);
+const san = (n) => THREE.PropertyBinding.sanitizeNodeName(n);
+const get = (n) => root.getObjectByName(san(n));
+root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+get('electrodo bajo la pelota') && (get('electrodo bajo la pelota').visible = false);
+// vidrio ahumado de la pantalla
+const glass = get('tapa vidrio');
+if (glass) glass.material = new THREE.MeshPhysicalMaterial({ color: 0x1d2025, roughness: 0.12, metalness: 0, transparent: true, opacity: 0.32, clearcoat: 0.3, clearcoatRoughness: 0.1, envMapIntensity: 0.15, depthWrite: false });
+const limeMat = new THREE.MeshStandardMaterial({ color: 0x9bd31a, roughness: 0.35 });
+get('paleta neuronas') && get('paleta neuronas').traverse((x) => { if (x.isMesh) x.material = limeMat; });
+
+// neuronas: material propio con brillo que sigue a la actividad
+const neuronBase = new THREE.Color(0.78, 0.6, 0.2);
+const NEU = {};
+for (const [k, n] of Object.entries({ B: 'neurona B (en reposo)', A: 'neurona A (siente)', C: 'neurona C (dispara)', UP: 'neurona motora SUBE (dispara)', DN: 'neurona motora BAJA (en reposo)' })) {
+  const o = get(n); if (!o) continue;
+  const m = new THREE.MeshStandardMaterial({ color: neuronBase, roughness: 0.55, emissive: new THREE.Color(1.0, 0.62, 0.18), emissiveIntensity: 0 });
+  o.traverse((x) => { if (x.isMesh) x.material = m; });
+  const box = new THREE.Box3().setFromObject(o);
+  NEU[k] = { obj: o, mat: m, center: box.getCenter(new THREE.Vector3()), act: 0 };
+}
+// filamentos: tubos sobre la placa; los que unen sensoriales con motoras cambian de grosor con el aprendizaje
+const filData = await (await fetch('filamentos.json')).json();
+const filMat = new THREE.MeshStandardMaterial({ color: neuronBase, roughness: 0.6, emissive: new THREE.Color(1, 0.7, 0.3), emissiveIntensity: 0.05 });
+const toV = (p) => B(p[0], p[1], p[2]);
+const plateY = filData.reduce((a, f) => a + f.pts.reduce((s, p) => s + p[2], 0) / f.pts.length, 0) / filData.length;
+function tubeMesh(points, r, mat) {
+  const curve = new THREE.CatmullRomCurve3(points);
+  const m = new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(24, points.length * 2), r, 6, false), mat);
+  m.castShadow = false; m.receiveShadow = true; m.userData.curve = curve; scene.add(m); return m;
+}
+const PATH_NAMES = { 'conexion B-SUBE (debil)': ['B', 'UP'], 'conexion B-BAJA (debil)': ['B', 'DN'], 'conexion C-SUBE (reforzada)': ['C', 'UP'] };
+const paths = {};
+for (const f of filData) {
+  const pts = f.pts.map(toV);
+  const role = PATH_NAMES[f.name];
+  if (role) { paths[role.join('-')] = { pts, mesh: null, r: 0 }; continue; }
+  const r = f.name.startsWith('brote') ? (f.r[0] + f.r[f.r.length - 1]) / 2 : 0.00011;
+  tubeMesh(pts, r, filMat);
+}
+function wiggle(a, b, seed) {
+  const pts = [], d = new THREE.Vector3().subVectors(b, a), perp = new THREE.Vector3(-d.z, 0, d.x).normalize(), L = d.length();
+  for (let k = 0; k <= 40; k++) {
+    const t = k / 40, off = 0.14 * L * (0.6 * Math.sin(t * 3.1 * Math.PI + seed) + 0.3 * Math.sin(t * 7.3 * Math.PI + seed * 2)) * Math.sin(t * Math.PI);
+    const p = a.clone().addScaledVector(d, t).addScaledVector(perp, off); p.y = plateY; pts.push(p);
+  }
+  return pts;
+}
+for (const [g, m, s] of [['A', 'UP', 1.3], ['A', 'DN', 2.1], ['C', 'DN', 0.7]]) {
+  if (NEU[g] && NEU[m]) paths[g + '-' + m] = { pts: wiggle(NEU[g].center, NEU[m].center, s), mesh: null, r: 0 };
+}
+const pathMat = new THREE.MeshStandardMaterial({ color: neuronBase, roughness: 0.5, emissive: new THREE.Color(1, 0.65, 0.25), emissiveIntensity: 0.25 });
+function setPathRadius(key, r) {
+  const p = paths[key]; if (!p) return;
+  if (p.mesh && Math.abs(p.r - r) / r < 0.04) return;
+  if (p.mesh) { scene.remove(p.mesh); p.mesh.geometry.dispose(); }
+  p.mesh = tubeMesh(p.pts, r, pathMat); p.r = r;
+}
+// señales que viajan
+const sigGeo = new THREE.SphereGeometry(0.00055, 10, 8);
+const sigMat = new THREE.MeshBasicMaterial({ color: 0xfff6d8 });
+const signals = [];
+function spawnSignal(key) {
+  const p = paths[key]; if (!p || !p.mesh || signals.length > 60) return;
+  const m = new THREE.Mesh(sigGeo, sigMat); scene.add(m); signals.push({ m, curve: p.mesh.userData.curve, t: 0 });
+}
+
+// juego: piezas sobre la pantalla (se mueven en coordenadas de la pantalla)
+const lid = get('tapa deslizante'), mod = get('modulo deslizante');
+const lidBase = lid.position.clone(), modBase = mod.position.clone();
+function pieceRef(name) {
+  const o = get(name); const box = new THREE.Box3().setFromObject(o); const c = box.getCenter(new THREE.Vector3());
+  return { o, base: o.position.clone(), c0: c };
+}
+const ball = pieceRef('pelota'), padN = pieceRef('paleta neuronas'), padA = pieceRef('paleta adversaria');
+function placeAt(ref, bx, by) {        // posición deseada en x,y de Blender (con la pantalla cerrada)
+  const want = B(bx, by, 0);
+  ref.o.position.x = ref.base.x + (want.x - ref.c0.x);
+  ref.o.position.z = ref.base.z + (want.z - ref.c0.z);
+}
+// botones y luces del aparato
+const keys = { UP: get('tecla SUBE'), DN: get('tecla BAJA') };
+const keyBase = { UP: keys.UP.position.y, DN: keys.DN.position.y };
+function emissiveOf(name) { const o = get(name); let m = null; o && o.traverse((x) => { if (x.isMesh && !m) { x.material = x.material.clone(); m = x.material; } }); return m; }
+const rings = { UP: emissiveOf('aro SUBE'), DN: emissiveOf('aro BAJA') };
+for (const r of Object.values(rings)) { if (r) { r.emissive = new THREE.Color(0.62, 0.95, 0.15); r.color = new THREE.Color(0.1, 0.1, 0.11); } }
+const leds = ['EST', 'SIL', 'S/F', 'REP'].map((n) => emissiveOf('led ' + n));
+const slider = get('corredera condicion'); const sliderBase = slider.position.z;
+const LED_STEP = 0.0065;
+// pantallas del aparato
+const scoreMesh = get('puntaje'), lcdMesh = get('evolucion');
+if (scoreMesh) scoreMesh.traverse((x) => { if (x.isMesh) x.material = new THREE.MeshBasicMaterial({ map: dotTex, toneMapped: false }); });
+if (lcdMesh) lcdMesh.traverse((x) => { if (x.isMesh) x.material = new THREE.MeshBasicMaterial({ map: lcdTex, toneMapped: false }); });
+
+// ---------- simulación
+const COND_ORDER = ['estimulo', 'silencio', 'sinfeedback', 'reposo'];
+let sim = new DB({ seed: 202, condition: 'estimulo' });
+let speed = 4, acc = 0, last = performance.now();
+let lidOpen = false, modOpen = false, lidX = 0, modY = 0;
+const PE = DB.PARAMS.perElec, NE = DB.PARAMS.nElec;
+const groupOfElec = (e) => (e <= 2 ? 'B' : e <= 4 ? 'A' : 'C');
+const prevStim = new Float64Array(NE).fill(-1e9);
+let rateMaxU = 8, rateMaxD = 8, advX = 0.5;
+
+function pathWeights() {
+  const NS = sim.NS, NM = sim.NM, W = sim.W, out = {};
+  for (const g of ['A', 'B', 'C']) {
+    const bins = g === 'B' ? [0, 1, 2] : g === 'A' ? [3, 4] : [5, 6, 7];
+    let su = 0, nu = 0, sd = 0, nd = 0;
+    for (const e of bins) for (let k = 0; k < PE; k++) {
+      const o = (e * PE + k) * NM;
+      for (let j = 0; j < NM; j++) { if (sim.isUp[j]) { su += W[o + j]; nu++; } else { sd += W[o + j]; nd++; } }
+    }
+    out[g + '-UP'] = su / nu; out[g + '-DN'] = sd / nd;
+  }
+  return out;
+}
+let lastPathUpdate = 0;
+function updatePaths(now) {
+  if (now - lastPathUpdate < 300) return; lastPathUpdate = now;
+  const w = pathWeights(), w0 = (DB.PARAMS.wInit[0] + DB.PARAMS.wInit[1]) / 2;
+  for (const [k, v] of Object.entries(w)) setPathRadius(k, 0.00003 + 0.00011 * Math.pow(Math.max(0, v) / w0, 1.4));
+  paths.weights = w;
+}
+
+function setCond(c) {
+  sim.setCondition(c);
+  document.querySelectorAll('#conds button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cond === c)));
+  const k = COND_ORDER.indexOf(c);
+  leds.forEach((m, i) => { if (m) { m.emissive = new THREE.Color(0.62, 0.95, 0.15); m.emissiveIntensity = i === k ? 3 : 0; m.color = new THREE.Color(i === k ? 0x9bd31a : 0x1a1a1a); } });
+  slider.userData.target = sliderBase - k * LED_STEP;
+}
+document.querySelectorAll('#conds button').forEach((b) => b.addEventListener('click', () => setCond(b.dataset.cond)));
+document.querySelectorAll('#speeds button').forEach((b) => b.addEventListener('click', () => {
+  speed = +b.dataset.speed; document.querySelectorAll('#speeds button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+}));
+document.querySelectorAll('#views button').forEach((b) => b.addEventListener('click', () => { if (b.dataset.view === 'top') fitTop(); setView(b.dataset.view); }));
+$('#openLid').addEventListener('click', () => { lidOpen = !lidOpen; $('#openLid').setAttribute('aria-pressed', String(lidOpen)); });
+$('#openMod').addEventListener('click', () => { modOpen = !modOpen; $('#openMod').setAttribute('aria-pressed', String(modOpen)); });
+setCond('estimulo');
+fitTop(); setView('top', true);
+
+const PHASE = { juego: 'jugando', predecible: 'acierto · estímulo predecible', impredecible: 'fallo · estímulo impredecible 4 s', silencio: 'fallo · silencio 4 s' };
+let lastHud = 0, lastLcdMin = -1;
+
+function frame(now) {
+  const dt = Math.min(100, now - last); last = now;
+  // simular
+  acc += dt * speed; const n = Math.floor(acc); acc -= n;
+  const cnt = { A: 0, B: 0, C: 0, UP: 0, DN: 0 };
+  for (let k = 0; k < n; k++) {
+    sim.step();
+    for (let e = 0; e < NE; e++) if (sim.lastStim[e] > prevStim[e]) {
+      prevStim[e] = sim.lastStim[e];
+      if (sim.phase === 'juego' && Math.random() < 0.35) {
+        const g = groupOfElec(e), w = paths.weights || {};
+        for (const m of ['UP', 'DN']) if (Math.random() < Math.min(1, (w[g + '-' + m] || 1.7) / 3)) spawnSignal(g + '-' + m);
+      }
+    }
+  }
+  const log = sim.spikeLog;
+  for (let k = 1; k < log.length; k += 2) {
+    const i = log[k];
+    if (i < sim.NS) cnt[groupOfElec(Math.floor(i / PE))]++;
+    else cnt[sim.isUp[i - sim.NS] ? 'UP' : 'DN']++;
+  }
+  sim.spikeLog = [];
+  const decay = Math.exp(-dt / 140);
+  for (const [k, v] of Object.entries(NEU)) {
+    const size = k === 'UP' || k === 'DN' ? 40 : k === 'A' ? 24 : 36;
+    v.act = v.act * decay + cnt[k] / size * 6;
+    v.mat.emissiveIntensity = Math.min(1.6, v.act * 0.9);
+  }
+  // juego → piezas
+  const by = sim.ball.y, bx = sim.ball.x;
+  const yp = Y_PAD + PAD_T + BALL_R, ya = Y_ADV - PAD_T - BALL_R;
+  placeAt(ball, W0 + BALL_R + by * (W1 - W0 - 2 * BALL_R), yp + bx * (ya - yp));
+  ball.o.visible = sim.phase === 'juego' || sim.phase === 'predecible';
+  placeAt(padN, W0 + sim.paddle * (W1 - W0), Y_PAD);
+  advX += Math.max(-0.02, Math.min(0.02, by - advX)) * Math.min(1, dt * speed / 16);
+  advX = Math.min(1 - 0.18, Math.max(0.18, advX));
+  placeAt(padA, W0 + advX * (W1 - W0), Y_ADV);
+  // botones SUBE / BAJA siguen a las regiones motoras
+  rateMaxU = Math.max(rateMaxU * 0.999, sim.rateUp); rateMaxD = Math.max(rateMaxD * 0.999, sim.rateDown);
+  const pu = Math.min(1, sim.rateUp / rateMaxU), pd = Math.min(1, sim.rateDown / rateMaxD);
+  keys.UP.position.y = keyBase.UP - 0.0008 * pu; keys.DN.position.y = keyBase.DN - 0.0008 * pd;
+  if (rings.UP) rings.UP.emissiveIntensity = 4 * pu; if (rings.DN) rings.DN.emissiveIntensity = 4 * pd;
+  // señales
+  for (let i = signals.length - 1; i >= 0; i--) {
+    const s = signals[i]; s.t += dt / 380;
+    if (s.t >= 1) { scene.remove(s.m); signals.splice(i, 1); continue; }
+    s.m.position.copy(s.curve.getPointAt(s.t)); s.m.position.y += 0.0002;
+  }
+  // deslizamientos (sin rotar: solo se trasladan)
+  lidX += ((lidOpen ? -LID_TRAVEL : 0) - lidX) * Math.min(1, dt / 160);
+  modY += ((modOpen ? -MOD_TRAVEL : 0) - modY) * Math.min(1, dt / 160);
+  lid.position.x = lidBase.x + lidX; mod.position.z = modBase.z - modY;
+  if (slider.userData.target !== undefined) slider.position.z += (slider.userData.target - slider.position.z) * Math.min(1, dt / 120);
+  updatePaths(now);
+  // tablero
+  if (now - lastHud > 250) {
+    lastHud = now;
+    const t = sim.t, m = Math.floor(t / 60000);
+    $('#sTime').textContent = m + ':' + String(Math.floor(t / 1000) % 60).padStart(2, '0');
+    const st = sim.summary(t - 120000, t + 1);
+    $('#sHits').textContent = st.n ? st.hitsPerRally.toFixed(1) : '–';
+    const chip = $('#phase'); if (chip.dataset.phase !== sim.phase) { chip.dataset.phase = sim.phase; chip.textContent = PHASE[sim.phase]; }
+    drawScore(sim.totalHits, sim.totalMisses);
+    if (m !== lastLcdMin) {
+      lastLcdMin = m; const series = [];
+      for (let k = 0; k < m; k++) { const s = sim.summary(k * 60000, (k + 1) * 60000); series.push(s.n ? s.hitsPerRally : 0); }
+      drawLcd(series);
+    }
+  }
+  if (viewAnim) {
+    viewAnim.t = Math.min(1, viewAnim.t + dt / 700); const e = 1 - Math.pow(1 - viewAnim.t, 3);
+    camera.position.lerpVectors(viewAnim.from.pos, viewAnim.to.pos, e); camera.up.lerpVectors(viewAnim.from.up, viewAnim.to.up, e).normalize();
+    controls.target.lerpVectors(viewAnim.from.target, viewAnim.to.target, e);
+    if (viewAnim.t >= 1) viewAnim = null;
+  }
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+drawScore(0, 0); drawLcd([]); updatePaths(0);
+requestAnimationFrame(frame);
+</script>
