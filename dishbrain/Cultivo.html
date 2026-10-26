@@ -20,7 +20,7 @@
 html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); }
 .wrap {
-  min-height: 100%; box-sizing: border-box; display: grid; grid-template-rows: auto 1fr auto; gap: 12px;
+  min-height: 100%; box-sizing: border-box; display: grid; grid-template-rows: auto 1fr auto auto; gap: 12px;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px;
   max-width: 1200px; margin: 0 auto;
 }
@@ -30,7 +30,7 @@ h1 { margin: 0; font: 700 1.5rem/1.05 var(--f-display); letter-spacing: -0.02em;
 .sub { color: var(--muted); font-size: 0.9rem; margin: 4px 0 0; max-width: 70ch; }
 .view { position: relative; min-height: min(70vh, 640px); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #070907; }
 .view canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.legend { position: absolute; left: 10px; bottom: 10px; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.76rem; color: var(--muted); background: rgba(7, 9, 7, 0.75); padding: 6px 10px; border-radius: 8px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.78rem; color: var(--muted); }
 .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
 .console { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 .group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -50,7 +50,7 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
   <header>
     <div>
       <h1>Cultivo de PongBrain</h1>
-      <p class="sub">Vista desde arriba de tu placa. Nada está dibujado a mano: las células caen al azar, sus axones crecen y se conectan donde se tocan, y todo lo que se ve sale de la simulación.</p>
+      <p class="sub">Vista desde arriba de tu placa. Nada está dibujado a mano: las células caen al azar, les crecen dendritas y axones, y cada conexión aparece donde un axón cruza la dendrita de otra célula. Todo lo que se ve sale de la simulación.</p>
     </div>
     <span class="stage-label" id="stage">sembrando…</span>
   </header>
@@ -59,14 +59,18 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
     <canvas id="base" aria-hidden="true"></canvas>
     <canvas id="synl" aria-hidden="true"></canvas>
     <canvas id="live" aria-label="Placa con células, axones y actividad"></canvas>
-    <div class="legend">
+
+  </div>
+
+  <div class="legend">
       <span><i style="background:var(--cell)"></i>célula excitatoria</span>
       <span><i style="background:var(--inh)"></i>célula inhibitoria</span>
       <span><i style="background:var(--spike)"></i>dispara</span>
       <span><i style="background:var(--stim)"></i>electrodo estimulando</span>
-      <span><i style="background:#d9c27a;opacity:.6"></i>axón · punto = sinapsis (tamaño = fuerza)</span>
+      <span><i style="background:#e8c46a;opacity:.5"></i>dendritas (ramas cortas)</span>
+      <span><i style="background:#d9c27a;opacity:.3"></i>axones (largos y finos)</span>
+      <span><i style="background:#f0d78c"></i>punto = sinapsis, donde un axón cruza una dendrita (tamaño = fuerza)</span>
     </div>
-  </div>
 
   <div class="console" role="group" aria-label="Controles">
     <div class="group" id="conds">
@@ -144,7 +148,10 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
     persist: 0.93,           // cuánto mantiene la dirección
     branchP: 0.04, maxCones: 5,
     axonMaxE: 220, axonMaxI: 7,  // largo máximo del axón (mm, placa ampliada)
-    reachE: 2.2, reachI: 1.0,    // radio de las dendritas de la célula que recibe (mm)
+    // dendritas: ramas cortas que crecen de cada célula; la sinapsis se forma donde un axón cruza una
+    dendPrimary: [4, 7], dendStep: 0.12, dendLenE: 1.9, dendLenI: 1.3, dendBranchP: 0.12, dendPersist: 0.7,
+    dendSteps: 72,           // pasos de crecimiento (los primeros 3 días)
+    contact: 0.09,           // mm: distancia a la que un axón que pasa toca una dendrita
     maxSynOut: 200,
     speed: 2.5,              // mm por ms: velocidad de la señal por el axón (escala ampliada)
     // actividad
@@ -225,20 +232,65 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
   Cultivo.prototype.initGrowth = function () {
     const r = this.r;
     this.seg = { x0: [], y0: [], x1: [], y1: [], cell: [], path: [], born: [] };   // cada tramo de axón
-    this.cones = [];
+    this.den = { x0: [], y0: [], x1: [], y1: [], cell: [], path: [], born: [] };   // cada tramo de dendrita
+    this.dgrid = new Map();   // tramos de dendrita por casilla de 1 mm
+    this.cones = []; this.dcones = [];
     this.syn = { pre: [], post: [], x: [], y: [], delay: [], w: [], born: [] };
     this.synSet = new Set();
     this.outCount = new Uint16Array(this.N); this.axLen = new Float32Array(this.N);
     for (let i = 0; i < this.N; i++) {
       const a = r() * Math.PI * 2;
       this.cones.push({ cell: i, x: this.cx[i], y: this.cy[i], dx: Math.cos(a), dy: Math.sin(a), path: 0, alive: true });
+      const k = P.dendPrimary[0] + Math.floor(r() * (P.dendPrimary[1] - P.dendPrimary[0] + 1));
+      const maxL = (this.inh[i] ? P.dendLenI : P.dendLenE) * (0.7 + r() * 0.6);
+      for (let q = 0; q < k; q++) {
+        const b = (q / k) * Math.PI * 2 + r() * 0.8;
+        const r0 = this.size[i];   // las dendritas salen del borde del cuerpo
+        this.dcones.push({ cell: i, x: this.cx[i] + Math.cos(b) * r0, y: this.cy[i] + Math.sin(b) * r0, a: b, path: r0, max: maxL, alive: true });
+      }
     }
+  };
+  Cultivo.prototype.dkey = function (x, y) { return Math.floor(x) * 1000 + Math.floor(y); };
+  // distancia al cuadrado entre dos tramos (para saber si un axón toca una dendrita)
+  function segDist2(ax, ay, bx, by, cx, cy, dx, dy) {
+    const o = (px, py, qx, qy, rx, ry) => (qx - px) * (ry - py) - (qy - py) * (rx - px);
+    const d1 = o(ax, ay, bx, by, cx, cy), d2 = o(ax, ay, bx, by, dx, dy), d3 = o(cx, cy, dx, dy, ax, ay), d4 = o(cx, cy, dx, dy, bx, by);
+    if (((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0))) return 0;
+    const ps = (px, py, x0, y0, x1, y1) => {
+      const vx = x1 - x0, vy = y1 - y0, L = vx * vx + vy * vy;
+      let t = L ? ((px - x0) * vx + (py - y0) * vy) / L : 0; t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const ex = x0 + t * vx - px, ey = y0 + t * vy - py; return ex * ex + ey * ey;
+    };
+    return Math.min(ps(ax, ay, cx, cy, dx, dy), ps(bx, by, cx, cy, dx, dy), ps(cx, cy, ax, ay, bx, by), ps(dx, dy, ax, ay, bx, by));
+  }
+  Cultivo.prototype.growDendrites = function (born) {
+    const r = this.r, d = this.den, st = P.dendStep, extra = [];
+    for (const c of this.dcones) {
+      if (!c.alive) continue;
+      if (c.path >= c.max) { c.alive = false; continue; }
+      c.a += r.gauss() * (1 - P.dendPersist) * 1.2;
+      const nx = c.x + Math.cos(c.a) * st, ny = c.y + Math.sin(c.a) * st;
+      const pl = P.plate;
+      if (nx < pl.x0 || nx > pl.x1 || ny < pl.y0 || ny > pl.y1) { c.alive = false; continue; }   // fuera de la placa no crece
+      const k = d.x0.length;
+      d.x0.push(c.x); d.y0.push(c.y); d.x1.push(nx); d.y1.push(ny); d.cell.push(c.cell); c.path += st; d.path.push(c.path); d.born.push(born);
+      const key = this.dkey((c.x + nx) / 2, (c.y + ny) / 2);
+      let cell = this.dgrid.get(key); if (!cell) { cell = []; this.dgrid.set(key, cell); } cell.push(k);
+      c.x = nx; c.y = ny;
+      if (r() < P.dendBranchP) {
+        const b = (r() < 0.5 ? 1 : -1) * (0.4 + r() * 0.5);
+        extra.push({ cell: c.cell, x: nx, y: ny, a: c.a + b, path: c.path, max: c.max, alive: true });
+        c.a -= b * 0.5;
+      }
+    }
+    this.dcones.push(...extra);
   };
   Cultivo.prototype.growStep = function () {
     if (this.growth.done) return;
     const r = this.r, pl = P.plate, step = P.growStep;
     const born = this.growth.step;
-    const newCones = [];
+    if (born < P.dendSteps) this.growDendrites(born);
+    const newCones = [], d = this.den, c2 = P.contact * P.contact;
     for (const c of this.cones) {
       if (!c.alive) continue;
       const i = c.cell, max = this.inh[i] ? P.axonMaxI : P.axonMaxE;
@@ -251,19 +303,26 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
       if (ny < pl.y0 || ny > pl.y1) { c.dy = -Math.sin(a); ny = c.y; } else c.dy = Math.sin(a);
       const s = this.seg; s.x0.push(c.x); s.y0.push(c.y); s.x1.push(nx); s.y1.push(ny);
       s.cell.push(i); c.path += step; s.path.push(c.path); s.born.push(born);
-      this.axLen[i] += step; c.x = nx; c.y = ny;
-      // ¿toca a otra célula? → sinapsis en ese punto
-      const reachOf = (j) => (this.inh[j] ? P.reachI : P.reachE);
-      this.near(nx, ny, P.reachE, (j, d2) => {
-        if (j === i || d2 > reachOf(j) * reachOf(j)) return;
-        const key = i * 4096 + j;
-        if (this.synSet.has(key) || this.outCount[i] >= P.maxSynOut) return;
-        this.synSet.add(key); this.outCount[i]++;
-        const sy = this.syn; sy.pre.push(i); sy.post.push(j); sy.x.push(nx); sy.y.push(ny); sy.born.push(born);
-        sy.delay.push(Math.max(1, Math.min(31, Math.round(1 + c.path / P.speed))));
-        const wr = this.inh[i] ? P.wI : P.wE;
-        sy.w.push(wr[0] + r() * (wr[1] - wr[0]));
-      });
+      this.axLen[i] += step;
+      // ¿el axón cruza una dendrita de otra célula? → sinapsis justo ahí
+      const gx0 = Math.floor(Math.min(c.x, nx) - 0.2), gx1 = Math.floor(Math.max(c.x, nx) + 0.2);
+      const gy0 = Math.floor(Math.min(c.y, ny) - 0.2), gy1 = Math.floor(Math.max(c.y, ny) + 0.2);
+      for (let gx = gx0; gx <= gx1; gx++) for (let gy = gy0; gy <= gy1; gy++) {
+        const list = this.dgrid.get(gx * 1000 + gy); if (!list) continue;
+        for (const k of list) {
+          const j = d.cell[k]; if (j === i) continue;
+          const key = i * 4096 + j;
+          if (this.synSet.has(key) || this.outCount[i] >= P.maxSynOut) continue;
+          if (segDist2(c.x, c.y, nx, ny, d.x0[k], d.y0[k], d.x1[k], d.y1[k]) > c2) continue;
+          this.synSet.add(key); this.outCount[i]++;
+          const sy = this.syn, px = (d.x0[k] + d.x1[k]) / 2, py = (d.y0[k] + d.y1[k]) / 2;
+          sy.pre.push(i); sy.post.push(j); sy.x.push(px); sy.y.push(py); sy.born.push(born);
+          sy.delay.push(Math.max(1, Math.min(31, Math.round(1 + (c.path + d.path[k]) / P.speed))));
+          const wr = this.inh[i] ? P.wI : P.wE;
+          sy.w.push(wr[0] + r() * (wr[1] - wr[0]));
+        }
+      }
+      c.x = nx; c.y = ny;
       // ramificación
       if (r() < P.branchP && this.cones.length + newCones.length < this.N * P.maxCones) {
         const b = (r() < 0.5 ? 1 : -1) * (0.5 + r() * 0.6);
@@ -481,9 +540,9 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
     S = Math.min((W - 24) / pw, (H - 24) / ph); OX = (W - pw * S) / 2; OY = (H - ph * S) / 2;
   }
 
-  let cul, drawnSeg = 0, drawnSyn = 0, speed = 1, cond = 'estimulo', acc = 0, last = performance.now();
+  let cul, drawnSeg = 0, drawnSyn = 0, drawnDen = 0, speed = 1, cond = 'estimulo', acc = 0, last = performance.now();
   function fresh(seed) {
-    cul = new Cultivo({ seed, condition: cond }); drawnSeg = 0; drawnSyn = 0;
+    cul = new Cultivo({ seed, condition: cond }); drawnSeg = 0; drawnSyn = 0; drawnDen = 0; sctx.clearRect(0, 0, W, H);
     document.getElementById('sCells').textContent = cul.N.toLocaleString('es');
     paintPlate();
   }
@@ -507,6 +566,22 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
   }
   // axones que ya crecieron (se agregan de a poco, en el orden en que crecieron)
   function paintNewGrowth() {
+    // dendritas: ramas cortas y más gruesas, del color de su célula
+    const dd = cul.den, dn = dd.x0.length;
+    if (drawnDen < dn) {
+      bctx.lineCap = 'round';
+      for (const inh of [0, 1]) {
+        bctx.beginPath();
+        for (let k = drawnDen; k < dn; k++) {
+          if (cul.inh[dd.cell[k]] !== inh) continue;
+          const t = 1 - Math.min(1, dd.path[k] / 2.2);   // se afinan hacia la punta
+          bctx.moveTo(sx(dd.y0[k]), sy(dd.x0[k])); bctx.lineTo(sx(dd.y1[k]), sy(dd.x1[k]));
+        }
+        bctx.strokeStyle = inh ? 'rgba(127,178,255,0.45)' : 'rgba(232,196,106,0.32)';
+        bctx.lineWidth = Math.max(0.8, 0.09 * S); bctx.stroke();
+      }
+      drawnDen = dn;
+    }
     const sg = cul.seg, n = sg.x0.length;
     if (drawnSeg < n) {
       bctx.lineWidth = Math.max(0.5, 0.12 * S);
@@ -615,7 +690,7 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
     speed = +b.dataset.speed; document.querySelectorAll('#speeds button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
   }));
   document.getElementById('reseed').addEventListener('click', () => fresh(1 + Math.floor(Math.random() * 1e6)));
-  window.addEventListener('resize', () => { layout(); paintPlate(); sctx.clearRect(0, 0, W, H); drawnSeg = 0; drawnSyn = 0; paintNewGrowth(); if (cul.growth.done) repaintSynapses(); });
+  window.addEventListener('resize', () => { layout(); paintPlate(); sctx.clearRect(0, 0, W, H); drawnSeg = 0; drawnSyn = 0; drawnDen = 0; paintNewGrowth(); if (cul.growth.done) repaintSynapses(); });
   layout(); fresh(1);
   requestAnimationFrame(frame);
 })();

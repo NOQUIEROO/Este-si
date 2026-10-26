@@ -20,7 +20,7 @@
 html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); }
 .wrap {
-  min-height: 100%; box-sizing: border-box; display: grid; grid-template-rows: auto 1fr auto; gap: 12px;
+  min-height: 100%; box-sizing: border-box; display: grid; grid-template-rows: auto 1fr auto auto; gap: 12px;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px;
   max-width: 1200px; margin: 0 auto;
 }
@@ -30,7 +30,7 @@ h1 { margin: 0; font: 700 1.5rem/1.05 var(--f-display); letter-spacing: -0.02em;
 .sub { color: var(--muted); font-size: 0.9rem; margin: 4px 0 0; max-width: 70ch; }
 .view { position: relative; min-height: min(70vh, 640px); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #070907; }
 .view canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.legend { position: absolute; left: 10px; bottom: 10px; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.76rem; color: var(--muted); background: rgba(7, 9, 7, 0.75); padding: 6px 10px; border-radius: 8px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.78rem; color: var(--muted); }
 .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
 .console { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 .group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -50,7 +50,7 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
   <header>
     <div>
       <h1>Cultivo de PongBrain</h1>
-      <p class="sub">Vista desde arriba de tu placa. Nada está dibujado a mano: las células caen al azar, sus axones crecen y se conectan donde se tocan, y todo lo que se ve sale de la simulación.</p>
+      <p class="sub">Vista desde arriba de tu placa. Nada está dibujado a mano: las células caen al azar, les crecen dendritas y axones, y cada conexión aparece donde un axón cruza la dendrita de otra célula. Todo lo que se ve sale de la simulación.</p>
     </div>
     <span class="stage-label" id="stage">sembrando…</span>
   </header>
@@ -59,14 +59,18 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
     <canvas id="base" aria-hidden="true"></canvas>
     <canvas id="synl" aria-hidden="true"></canvas>
     <canvas id="live" aria-label="Placa con células, axones y actividad"></canvas>
-    <div class="legend">
+
+  </div>
+
+  <div class="legend">
       <span><i style="background:var(--cell)"></i>célula excitatoria</span>
       <span><i style="background:var(--inh)"></i>célula inhibitoria</span>
       <span><i style="background:var(--spike)"></i>dispara</span>
       <span><i style="background:var(--stim)"></i>electrodo estimulando</span>
-      <span><i style="background:#d9c27a;opacity:.6"></i>axón · punto = sinapsis (tamaño = fuerza)</span>
+      <span><i style="background:#e8c46a;opacity:.5"></i>dendritas (ramas cortas)</span>
+      <span><i style="background:#d9c27a;opacity:.3"></i>axones (largos y finos)</span>
+      <span><i style="background:#f0d78c"></i>punto = sinapsis, donde un axón cruza una dendrita (tamaño = fuerza)</span>
     </div>
-  </div>
 
   <div class="console" role="group" aria-label="Controles">
     <div class="group" id="conds">
@@ -114,9 +118,9 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
     S = Math.min((W - 24) / pw, (H - 24) / ph); OX = (W - pw * S) / 2; OY = (H - ph * S) / 2;
   }
 
-  let cul, drawnSeg = 0, drawnSyn = 0, speed = 1, cond = 'estimulo', acc = 0, last = performance.now();
+  let cul, drawnSeg = 0, drawnSyn = 0, drawnDen = 0, speed = 1, cond = 'estimulo', acc = 0, last = performance.now();
   function fresh(seed) {
-    cul = new Cultivo({ seed, condition: cond }); drawnSeg = 0; drawnSyn = 0;
+    cul = new Cultivo({ seed, condition: cond }); drawnSeg = 0; drawnSyn = 0; drawnDen = 0; sctx.clearRect(0, 0, W, H);
     document.getElementById('sCells').textContent = cul.N.toLocaleString('es');
     paintPlate();
   }
@@ -140,6 +144,22 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
   }
   // axones que ya crecieron (se agregan de a poco, en el orden en que crecieron)
   function paintNewGrowth() {
+    // dendritas: ramas cortas y más gruesas, del color de su célula
+    const dd = cul.den, dn = dd.x0.length;
+    if (drawnDen < dn) {
+      bctx.lineCap = 'round';
+      for (const inh of [0, 1]) {
+        bctx.beginPath();
+        for (let k = drawnDen; k < dn; k++) {
+          if (cul.inh[dd.cell[k]] !== inh) continue;
+          const t = 1 - Math.min(1, dd.path[k] / 2.2);   // se afinan hacia la punta
+          bctx.moveTo(sx(dd.y0[k]), sy(dd.x0[k])); bctx.lineTo(sx(dd.y1[k]), sy(dd.x1[k]));
+        }
+        bctx.strokeStyle = inh ? 'rgba(127,178,255,0.45)' : 'rgba(232,196,106,0.32)';
+        bctx.lineWidth = Math.max(0.8, 0.09 * S); bctx.stroke();
+      }
+      drawnDen = dn;
+    }
     const sg = cul.seg, n = sg.x0.length;
     if (drawnSeg < n) {
       bctx.lineWidth = Math.max(0.5, 0.12 * S);
@@ -248,7 +268,7 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
     speed = +b.dataset.speed; document.querySelectorAll('#speeds button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
   }));
   document.getElementById('reseed').addEventListener('click', () => fresh(1 + Math.floor(Math.random() * 1e6)));
-  window.addEventListener('resize', () => { layout(); paintPlate(); sctx.clearRect(0, 0, W, H); drawnSeg = 0; drawnSyn = 0; paintNewGrowth(); if (cul.growth.done) repaintSynapses(); });
+  window.addEventListener('resize', () => { layout(); paintPlate(); sctx.clearRect(0, 0, W, H); drawnSeg = 0; drawnSyn = 0; drawnDen = 0; paintNewGrowth(); if (cul.growth.done) repaintSynapses(); });
   layout(); fresh(1);
   requestAnimationFrame(frame);
 })();

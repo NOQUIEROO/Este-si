@@ -48,7 +48,10 @@
     persist: 0.93,           // cuánto mantiene la dirección
     branchP: 0.04, maxCones: 5,
     axonMaxE: 220, axonMaxI: 7,  // largo máximo del axón (mm, placa ampliada)
-    reachE: 2.2, reachI: 1.0,    // radio de las dendritas de la célula que recibe (mm)
+    // dendritas: ramas cortas que crecen de cada célula; la sinapsis se forma donde un axón cruza una
+    dendPrimary: [4, 7], dendStep: 0.12, dendLenE: 1.9, dendLenI: 1.3, dendBranchP: 0.12, dendPersist: 0.7,
+    dendSteps: 72,           // pasos de crecimiento (los primeros 3 días)
+    contact: 0.09,           // mm: distancia a la que un axón que pasa toca una dendrita
     maxSynOut: 200,
     speed: 2.5,              // mm por ms: velocidad de la señal por el axón (escala ampliada)
     // actividad
@@ -129,20 +132,65 @@
   Cultivo.prototype.initGrowth = function () {
     const r = this.r;
     this.seg = { x0: [], y0: [], x1: [], y1: [], cell: [], path: [], born: [] };   // cada tramo de axón
-    this.cones = [];
+    this.den = { x0: [], y0: [], x1: [], y1: [], cell: [], path: [], born: [] };   // cada tramo de dendrita
+    this.dgrid = new Map();   // tramos de dendrita por casilla de 1 mm
+    this.cones = []; this.dcones = [];
     this.syn = { pre: [], post: [], x: [], y: [], delay: [], w: [], born: [] };
     this.synSet = new Set();
     this.outCount = new Uint16Array(this.N); this.axLen = new Float32Array(this.N);
     for (let i = 0; i < this.N; i++) {
       const a = r() * Math.PI * 2;
       this.cones.push({ cell: i, x: this.cx[i], y: this.cy[i], dx: Math.cos(a), dy: Math.sin(a), path: 0, alive: true });
+      const k = P.dendPrimary[0] + Math.floor(r() * (P.dendPrimary[1] - P.dendPrimary[0] + 1));
+      const maxL = (this.inh[i] ? P.dendLenI : P.dendLenE) * (0.7 + r() * 0.6);
+      for (let q = 0; q < k; q++) {
+        const b = (q / k) * Math.PI * 2 + r() * 0.8;
+        const r0 = this.size[i];   // las dendritas salen del borde del cuerpo
+        this.dcones.push({ cell: i, x: this.cx[i] + Math.cos(b) * r0, y: this.cy[i] + Math.sin(b) * r0, a: b, path: r0, max: maxL, alive: true });
+      }
     }
+  };
+  Cultivo.prototype.dkey = function (x, y) { return Math.floor(x) * 1000 + Math.floor(y); };
+  // distancia al cuadrado entre dos tramos (para saber si un axón toca una dendrita)
+  function segDist2(ax, ay, bx, by, cx, cy, dx, dy) {
+    const o = (px, py, qx, qy, rx, ry) => (qx - px) * (ry - py) - (qy - py) * (rx - px);
+    const d1 = o(ax, ay, bx, by, cx, cy), d2 = o(ax, ay, bx, by, dx, dy), d3 = o(cx, cy, dx, dy, ax, ay), d4 = o(cx, cy, dx, dy, bx, by);
+    if (((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0))) return 0;
+    const ps = (px, py, x0, y0, x1, y1) => {
+      const vx = x1 - x0, vy = y1 - y0, L = vx * vx + vy * vy;
+      let t = L ? ((px - x0) * vx + (py - y0) * vy) / L : 0; t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const ex = x0 + t * vx - px, ey = y0 + t * vy - py; return ex * ex + ey * ey;
+    };
+    return Math.min(ps(ax, ay, cx, cy, dx, dy), ps(bx, by, cx, cy, dx, dy), ps(cx, cy, ax, ay, bx, by), ps(dx, dy, ax, ay, bx, by));
+  }
+  Cultivo.prototype.growDendrites = function (born) {
+    const r = this.r, d = this.den, st = P.dendStep, extra = [];
+    for (const c of this.dcones) {
+      if (!c.alive) continue;
+      if (c.path >= c.max) { c.alive = false; continue; }
+      c.a += r.gauss() * (1 - P.dendPersist) * 1.2;
+      const nx = c.x + Math.cos(c.a) * st, ny = c.y + Math.sin(c.a) * st;
+      const pl = P.plate;
+      if (nx < pl.x0 || nx > pl.x1 || ny < pl.y0 || ny > pl.y1) { c.alive = false; continue; }   // fuera de la placa no crece
+      const k = d.x0.length;
+      d.x0.push(c.x); d.y0.push(c.y); d.x1.push(nx); d.y1.push(ny); d.cell.push(c.cell); c.path += st; d.path.push(c.path); d.born.push(born);
+      const key = this.dkey((c.x + nx) / 2, (c.y + ny) / 2);
+      let cell = this.dgrid.get(key); if (!cell) { cell = []; this.dgrid.set(key, cell); } cell.push(k);
+      c.x = nx; c.y = ny;
+      if (r() < P.dendBranchP) {
+        const b = (r() < 0.5 ? 1 : -1) * (0.4 + r() * 0.5);
+        extra.push({ cell: c.cell, x: nx, y: ny, a: c.a + b, path: c.path, max: c.max, alive: true });
+        c.a -= b * 0.5;
+      }
+    }
+    this.dcones.push(...extra);
   };
   Cultivo.prototype.growStep = function () {
     if (this.growth.done) return;
     const r = this.r, pl = P.plate, step = P.growStep;
     const born = this.growth.step;
-    const newCones = [];
+    if (born < P.dendSteps) this.growDendrites(born);
+    const newCones = [], d = this.den, c2 = P.contact * P.contact;
     for (const c of this.cones) {
       if (!c.alive) continue;
       const i = c.cell, max = this.inh[i] ? P.axonMaxI : P.axonMaxE;
@@ -155,19 +203,26 @@
       if (ny < pl.y0 || ny > pl.y1) { c.dy = -Math.sin(a); ny = c.y; } else c.dy = Math.sin(a);
       const s = this.seg; s.x0.push(c.x); s.y0.push(c.y); s.x1.push(nx); s.y1.push(ny);
       s.cell.push(i); c.path += step; s.path.push(c.path); s.born.push(born);
-      this.axLen[i] += step; c.x = nx; c.y = ny;
-      // ¿toca a otra célula? → sinapsis en ese punto
-      const reachOf = (j) => (this.inh[j] ? P.reachI : P.reachE);
-      this.near(nx, ny, P.reachE, (j, d2) => {
-        if (j === i || d2 > reachOf(j) * reachOf(j)) return;
-        const key = i * 4096 + j;
-        if (this.synSet.has(key) || this.outCount[i] >= P.maxSynOut) return;
-        this.synSet.add(key); this.outCount[i]++;
-        const sy = this.syn; sy.pre.push(i); sy.post.push(j); sy.x.push(nx); sy.y.push(ny); sy.born.push(born);
-        sy.delay.push(Math.max(1, Math.min(31, Math.round(1 + c.path / P.speed))));
-        const wr = this.inh[i] ? P.wI : P.wE;
-        sy.w.push(wr[0] + r() * (wr[1] - wr[0]));
-      });
+      this.axLen[i] += step;
+      // ¿el axón cruza una dendrita de otra célula? → sinapsis justo ahí
+      const gx0 = Math.floor(Math.min(c.x, nx) - 0.2), gx1 = Math.floor(Math.max(c.x, nx) + 0.2);
+      const gy0 = Math.floor(Math.min(c.y, ny) - 0.2), gy1 = Math.floor(Math.max(c.y, ny) + 0.2);
+      for (let gx = gx0; gx <= gx1; gx++) for (let gy = gy0; gy <= gy1; gy++) {
+        const list = this.dgrid.get(gx * 1000 + gy); if (!list) continue;
+        for (const k of list) {
+          const j = d.cell[k]; if (j === i) continue;
+          const key = i * 4096 + j;
+          if (this.synSet.has(key) || this.outCount[i] >= P.maxSynOut) continue;
+          if (segDist2(c.x, c.y, nx, ny, d.x0[k], d.y0[k], d.x1[k], d.y1[k]) > c2) continue;
+          this.synSet.add(key); this.outCount[i]++;
+          const sy = this.syn, px = (d.x0[k] + d.x1[k]) / 2, py = (d.y0[k] + d.y1[k]) / 2;
+          sy.pre.push(i); sy.post.push(j); sy.x.push(px); sy.y.push(py); sy.born.push(born);
+          sy.delay.push(Math.max(1, Math.min(31, Math.round(1 + (c.path + d.path[k]) / P.speed))));
+          const wr = this.inh[i] ? P.wI : P.wE;
+          sy.w.push(wr[0] + r() * (wr[1] - wr[0]));
+        }
+      }
+      c.x = nx; c.y = ny;
       // ramificación
       if (r() < P.branchP && this.cones.length + newCones.length < this.N * P.maxCones) {
         const b = (r() < 0.5 ? 1 : -1) * (0.5 + r() * 0.6);
