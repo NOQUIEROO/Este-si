@@ -185,7 +185,7 @@ function loop() {
 }
 function sembrar(seed, trained) {
   state = 'growing'; seedNo = seed; lastMin = -1;
-  if (trained && trained.params) for (const k of ['lr', 'tauElig', 'ballR', 'stimMode', 'paddleGain', 'plasticMotor', 'jitter', 'missScale', 'bandH', 'aMinus', 'stdpRate', 'paper', 'missStim']) if (trained.params[k] != null) P[k] = trained.params[k];
+  if (trained && trained.params) for (const k of ['lr', 'tauElig', 'ballR', 'stimMode', 'paddleGain', 'plasticMotor', 'jitter', 'missScale', 'bandH', 'aMinus', 'stdpRate', 'paper', 'missStim', 'nCells']) if (trained.params[k] != null) P[k] = trained.params[k];
   cul = new CU({ seed, condition: 'estimulo' });
   let lastDay = 0;
   while (!cul.growth.done) {
