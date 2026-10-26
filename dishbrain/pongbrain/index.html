@@ -343,6 +343,18 @@ const plateMat = new THREE.ShaderMaterial({
       vec2 aa = fwidth(vec2(xm, ym) / 0.78) * 0.8;
       float e = (smoothstep(0.0, aa.x, g.x) - smoothstep(0.385, 0.385 + aa.x, g.x)) * (smoothstep(0.0, aa.y, g.y) - smoothstep(0.385, 0.385 + aa.y, g.y));
       vec3 base = mix(vec3(0.02, 0.121, 0.003), vec3(0.314), clamp(e, 0.0, 1.0));
+      // serigrafía de la placa: la cancha y las zonas SUBE / BAJA marcadas en el chip
+      float lw = 0.12 + fwidth(ym) * 0.8;
+      float mark = 0.0;
+      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym + 45.8))) * step(abs(xm), 34.6));
+      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym - 37.9))) * step(abs(xm), 34.6));
+      float inWin = step(-67.5, ym) * step(ym, -52.5) * step(abs(xm), 33.8);
+      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym + 67.5))) * step(abs(xm), 33.8));
+      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym + 52.5))) * step(abs(xm), 33.8));
+      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(abs(xm) - 33.8))) * step(-67.5, ym) * step(ym, -52.5));
+      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(xm))) * inWin);
+      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym + 4.2))) * step(abs(xm), 34.6) * step(0.5, fract(xm / 2.0)));   // línea del medio
+      base = mix(base, vec3(0.85, 0.85, 0.8), mark * 0.75);
       // tejido: la masa se funde (metabola) y se le da relieve con su propia pendiente
       float f = texture2D(tField, uv).r;
       float edge = fwidth(f) * 1.5 + 0.02;
@@ -403,7 +415,8 @@ async function sembrar(seed) {
 }
 // fuerza de cada célula = cuánto pesan, en promedio, las conexiones que hizo su axón,
 // comparada con el resto del cultivo (así se ve qué caminos se intensificaron)
-const T = { pLow: 0.7, synQ: 0.99, axA0: 0.0, axA1: 0.6, axW0: 0.02, axW1: 0.45, denA: 0.2, denW: 0.15, blur: 0.2, somR0: 0.6, somR1: 1.6, somA: 0.7, knR0: 0.4, knR1: 1.2, knA: 0.9 };
+// el grosor de los cordones sale de cuántos axones van juntos (cada uno suma un poco); la fuerza agrega un poco más
+const T = { pLow: 0.6, synQ: 0.99, axA0: 0.06, axA1: 0.2, axW0: 0.08, axW1: 0.12, denA: 0.2, denW: 0.15, blur: 0.25, somR0: 0.5, somR1: 0.9, somA: 0.65, knR0: 0.35, knR1: 0.8, knA: 0.8 };
 function cellStrengths() {
   const st = culView.cellStrength, cnt = new Float32Array(cul.N), Pm = CU.PARAMS; st.fill(0);
   const S = cul.syn.pre.length, W = cul.W || cul.syn.w;

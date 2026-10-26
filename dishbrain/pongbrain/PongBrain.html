@@ -202,11 +202,16 @@ button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
     // dendritas: ramas cortas que crecen de cada célula; la sinapsis se forma donde un axón cruza una
     dendPrimary: [4, 7], dendStep: 0.12, dendLenE: 1.9, dendLenI: 1.3, dendBranchP: 0.12, dendPersist: 0.7,
     dendSteps: 72,           // pasos de crecimiento (los primeros 3 días)
+    // migración: los primeros días las células se mueven y se juntan con sus vecinas
+    aggSteps: 48, aggRange: 3.2, aggPull: 0.05, aggPush: 0.6, aggNoise: 0.03, aggMax: 0.12,
+    // fasciculación: una punta de axón que pasa cerca de otro axón tiende a seguirlo
+    fascRange: 0.35, fascPull: 0.65,
+    senseDist: 1.2, senseAngle: 0.55, turn: 0.9,    // la punta siente axones a 1,2 mm y gira hacia donde hay más
     contact: 0.09,           // mm: distancia a la que un axón que pasa toca una dendrita
     maxSynOut: 200,
     speed: 2.5,              // mm por ms: velocidad de la señal por el axón (escala ampliada)
     // actividad
-    wE: [2.0, 6.0], wI: [3.0, 7.0], wMax: 14,
+    wE: [2.5, 7.0], wI: [3.0, 7.0], wMax: 14,
     inTotalE: 260, inTotalI: 520,   // tope de entrada total por célula (escalado sináptico)
     noise: 2.8, stimI: 24, stimP: 0.9,
     ballR: 4.5, padR: 3.0,
@@ -289,6 +294,11 @@ button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
     this.syn = { pre: [], post: [], x: [], y: [], delay: [], w: [], born: [] };
     this.synSet = new Set();
     this.outCount = new Uint16Array(this.N); this.axLen = new Float32Array(this.N);
+    this.agrid = new Map();   // tramos de axón por casilla de 1 mm (para que otros axones los sigan)
+  };
+  // al terminar la migración, cada célula empieza a crecer desde donde quedó
+  Cultivo.prototype.startNeurites = function () {
+    const r = this.r;
     for (let i = 0; i < this.N; i++) {
       const a = r() * Math.PI * 2;
       this.cones.push({ cell: i, x: this.cx[i], y: this.cy[i], dx: Math.cos(a), dy: Math.sin(a), path: 0, alive: true });
@@ -301,7 +311,52 @@ button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
       }
     }
   };
-  Cultivo.prototype.dkey = function (x, y) { return Math.floor(x) * 1000 + Math.floor(y); };
+  // migración: atracción entre vecinas cercanas, empuje si se pisan, y un poco de azar
+  Cultivo.prototype.migrate = function () {
+    const r = this.r, n = this.N, pl = P.plate, fx = new Float32Array(n), fy = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      this.near(this.cx[i], this.cy[i], P.aggRange, (j, d2) => {
+        if (j === i || d2 === 0) return;
+        const d = Math.sqrt(d2), ux = (this.cx[j] - this.cx[i]) / d, uy = (this.cy[j] - this.cy[i]) / d;
+        const touch = (this.size[i] + this.size[j]) * 1.15;
+        const f = d < touch ? -P.aggPush * (touch - d) : P.aggPull * (1 - d / P.aggRange);
+        fx[i] += f * ux; fy[i] += f * uy;
+      });
+    }
+    for (let i = 0; i < n; i++) {
+      let vx = fx[i] + r.gauss() * P.aggNoise, vy = fy[i] + r.gauss() * P.aggNoise;
+      const v = Math.hypot(vx, vy); if (v > P.aggMax) { vx *= P.aggMax / v; vy *= P.aggMax / v; }
+      this.cx[i] = Math.max(pl.x0 + 0.5, Math.min(pl.x1 - 0.5, this.cx[i] + vx));
+      this.cy[i] = Math.max(pl.y0 + 0.5, Math.min(pl.y1 - 0.5, this.cy[i] + vy));
+    }
+    this.reindexCells();
+  };
+  Cultivo.prototype.reindexCells = function () {
+    for (const g of this.grid) g.length = 0;
+    for (let i = 0; i < this.N; i++) this.grid[this.gidx(this.cx[i], this.cy[i])].push(i);
+    const inZ = (z, x, y) => x >= z.x0 && x < z.x1 && y >= z.y0 && y < z.y1;
+    for (let i = 0; i < this.N; i++) {
+      const x = this.cx[i], y = this.cy[i];
+      this.zone[i] = inZ(P.up, x, y) ? 2 : inZ(P.down, x, y) ? 3 : inZ(P.court, x, y) ? 1 : 0;
+    }
+  };
+  Cultivo.prototype.nearestAxon = function (x, y, self) {
+    const sg = this.seg, R2 = P.fascRange * P.fascRange;
+    let best = null, bd = R2, seen = 0;
+    const gx = Math.floor(x), gy = Math.floor(y);
+    for (let ax = gx - 1; ax <= gx + 1; ax++) for (let ay = gy - 1; ay <= gy + 1; ay++) {
+      const list = this.agrid.get(ax * 1000 + ay); if (!list) continue;
+      for (let q = list.length - 1; q >= 0 && seen < 24; q--, seen++) {
+        const k = list[q]; if (sg.cell[k] === self) continue;
+        const vx = sg.x1[k] - sg.x0[k], vy = sg.y1[k] - sg.y0[k], L2 = vx * vx + vy * vy || 1;
+        let t = ((x - sg.x0[k]) * vx + (y - sg.y0[k]) * vy) / L2; t = t < 0 ? 0 : t > 1 ? 1 : t;
+        const ex = sg.x0[k] + t * vx - x, ey = sg.y0[k] + t * vy - y, d2 = ex * ex + ey * ey;
+        if (d2 < bd) { bd = d2; const L = Math.sqrt(L2); best = { dx: vx / L, dy: vy / L }; }
+      }
+    }
+    return best;
+  };
+    Cultivo.prototype.dkey = function (x, y) { return Math.floor(x) * 1000 + Math.floor(y); };
   // distancia al cuadrado entre dos tramos (para saber si un axón toca una dendrita)
   function segDist2(ax, ay, bx, by, cx, cy, dx, dy) {
     const o = (px, py, qx, qy, rx, ry) => (qx - px) * (ry - py) - (qy - py) * (rx - px);
@@ -340,20 +395,34 @@ button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
     if (this.growth.done) return;
     const r = this.r, pl = P.plate, step = P.growStep;
     const born = this.growth.step;
-    if (born < P.dendSteps) this.growDendrites(born);
+    if (born < P.aggSteps) { this.migrate(); this.growth.step++; return; }
+    if (born === P.aggSteps) this.startNeurites();
+    if (born - P.aggSteps < P.dendSteps) this.growDendrites(born);
     const newCones = [], d = this.den, c2 = P.contact * P.contact;
     for (const c of this.cones) {
       if (!c.alive) continue;
       const i = c.cell, max = this.inh[i] ? P.axonMaxI : P.axonMaxE;
       if (this.axLen[i] >= max || this.outCount[i] >= P.maxSynOut) { c.alive = false; continue; }
       // dirección: sigue la que traía, con un poco de azar
-      const a = Math.atan2(c.dy, c.dx) + r.gauss() * (1 - P.persist) * 1.6;
-      let nx = c.x + Math.cos(a) * step, ny = c.y + Math.sin(a) * step;
-      // los bordes de la placa la frenan y la desvían
-      if (nx < pl.x0 || nx > pl.x1) { c.dx = -Math.cos(a); nx = c.x; } else c.dx = Math.cos(a);
-      if (ny < pl.y0 || ny > pl.y1) { c.dy = -Math.sin(a); ny = c.y; } else c.dy = Math.sin(a);
+      // la punta se adhiere a otros axones: mira adelante, a la izquierda y a la derecha, y gira hacia donde hay más.
+      // más axones atraen más axones, y así se forman cordones (como en un moho mucilaginoso)
+      let gx = c.dx, gy = c.dy;
+      const f = this.nearestAxon(c.x, c.y, i);
+      if (f) { const sg = f.dx * gx + f.dy * gy >= 0 ? 1 : -1; gx = gx * (1 - P.fascPull) + sg * f.dx * P.fascPull; gy = gy * (1 - P.fascPull) + sg * f.dy * P.fascPull; }
+      let a = Math.atan2(gy, gx);
+      const dens = (ang) => { const px = c.x + Math.cos(ang) * P.senseDist, py = c.y + Math.sin(ang) * P.senseDist; const l = this.agrid.get(Math.floor(px) * 1000 + Math.floor(py)); return l ? l.length : 0; };
+      const dl = dens(a + P.senseAngle), dc = dens(a), dr = dens(a - P.senseAngle);
+      if (dl > dc && dl >= dr) a += P.turn * Math.min(1, (dl - dc) / (dc + 4));
+      else if (dr > dc && dr > dl) a -= P.turn * Math.min(1, (dr - dc) / (dc + 4));
+      a += r.gauss() * (1 - P.persist) * 1.6;
+      const nx = c.x + Math.cos(a) * step, ny = c.y + Math.sin(a) * step;
+      // el borde de la placa la frena: ahí deja de crecer (no rebota ni se amontona)
+      if (nx < pl.x0 || nx > pl.x1 || ny < pl.y0 || ny > pl.y1) { c.alive = false; continue; }
+      c.dx = Math.cos(a); c.dy = Math.sin(a);
       const s = this.seg; s.x0.push(c.x); s.y0.push(c.y); s.x1.push(nx); s.y1.push(ny);
       s.cell.push(i); c.path += step; s.path.push(c.path); s.born.push(born);
+      { const kk = s.x0.length - 1, key = Math.floor((c.x + nx) / 2) * 1000 + Math.floor((c.y + ny) / 2);
+        let cellList = this.agrid.get(key); if (!cellList) { cellList = []; this.agrid.set(key, cellList); } cellList.push(kk); }
       this.axLen[i] += step;
       // ¿el axón cruza una dendrita de otra célula? → sinapsis justo ahí
       const gx0 = Math.floor(Math.min(c.x, nx) - 0.2), gx1 = Math.floor(Math.max(c.x, nx) + 0.2);
@@ -4264,6 +4333,18 @@ void main() {
       vec2 aa = fwidth(vec2(xm, ym) / 0.78) * 0.8;
       float e = (smoothstep(0.0, aa.x, g.x) - smoothstep(0.385, 0.385 + aa.x, g.x)) * (smoothstep(0.0, aa.y, g.y) - smoothstep(0.385, 0.385 + aa.y, g.y));
       vec3 base = mix(vec3(0.02, 0.121, 0.003), vec3(0.314), clamp(e, 0.0, 1.0));
+      // serigraf\xEDa de la placa: la cancha y las zonas SUBE / BAJA marcadas en el chip
+      float lw = 0.12 + fwidth(ym) * 0.8;
+      float mark = 0.0;
+      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym + 45.8))) * step(abs(xm), 34.6));
+      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym - 37.9))) * step(abs(xm), 34.6));
+      float inWin = step(-67.5, ym) * step(ym, -52.5) * step(abs(xm), 33.8);
+      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym + 67.5))) * step(abs(xm), 33.8));
+      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym + 52.5))) * step(abs(xm), 33.8));
+      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(abs(xm) - 33.8))) * step(-67.5, ym) * step(ym, -52.5));
+      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(xm))) * inWin);
+      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym + 4.2))) * step(abs(xm), 34.6) * step(0.5, fract(xm / 2.0)));   // l\xEDnea del medio
+      base = mix(base, vec3(0.85, 0.85, 0.8), mark * 0.75);
       // tejido: la masa se funde (metabola) y se le da relieve con su propia pendiente
       float f = texture2D(tField, uv).r;
       float edge = fwidth(f) * 1.5 + 0.02;
@@ -4279,7 +4360,7 @@ void main() {
       gl_FragColor = vec4(col, 1.0);
       #include <tonemapping_fragment>
       #include <colorspace_fragment>
-    }`});{let t=new Ze({color:5263440,roughness:.5}),n=new Lt((vr-Ji)/1e3,.00262-.00123,(ji-xi)/1e3),i=new K0(n,[t,t,B6,t,t,t]);i.position.copy(it((Ji+vr)/2e3,(xi+ji)/2e3,(.00123+.00262)/2)),i.receiveShadow=!0,yt.add(i)}var A2=Fe("tapa vidrio");A2&&(A2.material=new ke({color:1908773,roughness:.12,metalness:0,transparent:!0,opacity:.32,clearcoat:.3,clearcoatRoughness:.1,envMapIntensity:.15,depthWrite:!1}));var z6=new Ze({color:10212122,roughness:.35});Fe("paleta neuronas")&&Fe("paleta neuronas").traverse(s=>{s.isMesh&&(s.material=z6)});for(let s of["neurona B (en reposo)","neurona A (siente)","neurona C (dispara)","neurona motora SUBE (dispara)","neurona motora BAJA (en reposo)"]){let e=Fe(s);e&&(e.visible=!1)}var m0=null,be=null;function Ka(s,e,t){let n=document.createElement("canvas");n.width=n.height=64;let i=n.getContext("2d"),r=i.createRadialGradient(32,32,0,32,32,32);return r.addColorStop(0,`rgba(${s},${e},${t},1)`),r.addColorStop(.45,`rgba(${s},${e},${t},0.5)`),r.addColorStop(1,`rgba(${s},${e},${t},0)`),i.fillStyle=r,i.fillRect(0,0,64,64),n}var E2=Ka(255,255,255),k6=Ka(255,0,0),H6=Ka(0,0,255);async function k2(s){for(be=null,m0=new yr({seed:s,condition:"estimulo"}),Pe("#phase").textContent="sembrando\u2026";!m0.growth.done;){let e=performance.now();for(;!m0.growth.done&&performance.now()-e<12;)m0.growStep();Pe("#phase").textContent="creciendo \xB7 d\xEDa "+Math.min(21,Math.ceil(m0.growth.step/yr.PARAMS.stepsPerDay))+" de 21 (calculando)",await new Promise(t=>requestAnimationFrame(t))}be={replay:0,lastField:-1e9,cellStrength:new Float32Array(m0.N)},gr(0)}var Oe={pLow:.7,synQ:.99,axA0:0,axA1:.6,axW0:.02,axW1:.45,denA:.2,denW:.15,blur:.2,somR0:.6,somR1:1.6,somA:.7,knR0:.4,knR1:1.2,knA:.9};function V6(){let s=be.cellStrength,e=new Float32Array(m0.N),t=yr.PARAMS;s.fill(0);let n=m0.syn.pre.length,i=m0.W||m0.syn.w;for(let l=0;l<n;l++){let h=m0.syn.pre[l];m0.inh[h]||(s[h]+=i[l]/t.wMax,e[h]++)}for(let l=0;l<m0.N;l++)s[l]=e[l]?s[l]/e[l]:0;let r=Array.from(s).filter((l,h)=>!m0.inh[h]).sort((l,h)=>l-h),o=r[Math.floor(r.length*Oe.pLow)],a=r[Math.floor(r.length*.98)];for(let l=0;l<m0.N;l++)s[l]=m0.inh[l]?0:Math.max(0,Math.min(1,(s[l]-o)/(a-o||1)));let c=Array.from(i).sort((l,h)=>l-h);return be.wq=c[Math.floor(c.length*Oe.synQ)],be.wmx=c[c.length-1],s}function gr(s){let e=V6(),t=m0.W||m0.syn.w,n=Mr.getContext("2d");n.clearRect(0,0,on,$i),n.lineCap="round",n.strokeStyle="#fff";let i=m0.seg,r=i.x0.length,o=6;for(let p=0;p<o;p++){n.beginPath();let g=!1;for(let m=0;m<r&&!(i.born[m]>s);m++)Math.min(o-1,Math.floor(e[i.cell[m]]*o))===p&&(n.moveTo(nn(i.y0[m]),sn(i.x0[m])),n.lineTo(nn(i.y1[m]),sn(i.x1[m])),g=!0);let _=p/(o-1);g&&(n.globalAlpha=Oe.axA0+Oe.axA1*_,n.lineWidth=(Oe.axW0+Oe.axW1*_)*Ut,n.stroke())}let a=m0.den;n.globalAlpha=Oe.denA,n.lineWidth=Oe.denW*Ut,n.beginPath();for(let p=0;p<a.x0.length&&!(a.born[p]>s);p++)n.moveTo(nn(a.y0[p]),sn(a.x0[p])),n.lineTo(nn(a.y1[p]),sn(a.x1[p]));n.stroke(),n.globalAlpha=1;let c=Tr.getContext("2d");c.globalCompositeOperation="source-over",c.fillStyle="#000",c.fillRect(0,0,on,$i),c.globalCompositeOperation="lighter",c.filter="blur("+(Oe.blur*Ut).toFixed(1)+"px)",c.drawImage(Mr,0,0),c.filter="none";for(let p=0;p<m0.N;p++){let g=(Oe.somR0+Oe.somR1*(m0.inh[p]?.2:e[p]))*Ut;c.globalAlpha=Oe.somA,c.drawImage(E2,nn(m0.cy[p])-g,sn(m0.cx[p])-g,2*g,2*g)}let l=m0.syn,h=l.pre.length,u=be.wq,d=be.wmx;for(let p=0;p<h;p++){if(l.born[p]>s||m0.inh[l.pre[p]]||t[p]<u)continue;let g=(t[p]-u)/(d-u||1),_=(Oe.knR0+Oe.knR1*g)*Ut;c.globalAlpha=Math.min(1,Oe.knA*(.3+g)),c.drawImage(E2,nn(l.y[p])-_,sn(l.x[p])-_,2*_,2*_)}c.globalAlpha=1,c.globalCompositeOperation="source-over",wr.needsUpdate=!0}function G6(){let s=Cn.getContext("2d"),e=Cn.width/on,t=m0.t;s.globalCompositeOperation="source-over",s.fillStyle="#000",s.fillRect(0,0,Cn.width,Cn.height),s.globalCompositeOperation="lighter";for(let i=0;i<m0.N;i++){let r=t-m0.lastSpike[i];if(r>90)continue;let o=1-r/90,a=(1.4+1.2*o)*Ut*e;s.globalAlpha=o,s.drawImage(k6,nn(m0.cy[i])*e-a,sn(m0.cx[i])*e-a,2*a,2*a)}let n=m0.stimLog;for(let i=Math.max(0,n.length-80);i<n.length;i+=4){let r=t-n[i];if(r>60)continue;let o=1-r/60,a=n[i+3]>=0?n[i+3]:-n[i+3],c=a*1.3*Ut*e;s.globalAlpha=o*.8,s.drawImage(H6,nn(n[i+2])*e-c,sn(n[i+1])*e-c,2*c,2*c)}n.length>2e3&&(m0.stimLog=n.slice(n.length-400)),s.globalAlpha=1,s.globalCompositeOperation="source-over",Rr.needsUpdate=!0}var H2=Fe("tapa deslizante"),V2=Fe("modulo deslizante"),W6=H2.position.clone(),X6=V2.position.clone();function Ja(s){let e=Fe(s),n=new ze().setFromObject(e).getCenter(new P);return{o:e,base:e.position.clone(),c0:n}}var T2=Ja("pelota"),q6=Ja("paleta neuronas"),Y6=Ja("paleta adversaria");function Oa(s,e,t){let n=it(e,t,0);s.o.position.x=s.base.x+(n.x-s.c0.x),s.o.position.z=s.base.z+(n.z-s.c0.z)}var Sr={UP:Fe("tecla SUBE"),DN:Fe("tecla BAJA")},w2={UP:Sr.UP.position.y,DN:Sr.DN.position.y};function Va(s){let e=Fe(s),t=null;return e&&e.traverse(n=>{n.isMesh&&!t&&(n.material=n.material.clone(),t=n.material)}),t}var Ki={UP:Va("aro SUBE"),DN:Va("aro BAJA")};for(let s of Object.values(Ki))s&&(s.emissive=new y0(.62,.95,.15),s.color=new y0(.1,.1,.11));var Z6=["EST","SIL","S/F","REP"].map(s=>Va("led "+s)),gi=Fe("corredera condicion"),K6=gi.position.z,J6=.0065,R2=Fe("puntaje"),C2=Fe("evolucion");R2&&R2.traverse(s=>{s.isMesh&&(s.material=new Ue({map:Ya,toneMapped:!1}))});C2&&C2.traverse(s=>{s.isMesh&&(s.material=new Ue({map:_i,toneMapped:!1}))});var j6=["estimulo","silencio","sinfeedback","reposo"],G2="estimulo",Ga=1,mr=0,P2=performance.now(),_r=!1,xr=!1,Fa=0,Ba=0,za=8,ka=8,Yi=.5,Zi=9e3;function W2(s){G2=s,m0&&m0.growth.done&&m0.setCondition(s),document.querySelectorAll("#conds button").forEach(t=>t.setAttribute("aria-pressed",String(t.dataset.cond===s)));let e=j6.indexOf(s);Z6.forEach((t,n)=>{t&&(t.emissive=new y0(.62,.95,.15),t.emissiveIntensity=n===e?3:0,t.color=new y0(n===e?10212122:1710618))}),gi.userData.target=K6-e*J6}document.querySelectorAll("#conds button").forEach(s=>s.addEventListener("click",()=>W2(s.dataset.cond)));document.querySelectorAll("#speeds button").forEach(s=>s.addEventListener("click",()=>{Ga=+s.dataset.speed,document.querySelectorAll("#speeds button").forEach(e=>e.setAttribute("aria-pressed",String(e===s)))}));document.querySelectorAll("#views button").forEach(s=>s.addEventListener("click",()=>{s.dataset.view==="top"&&qa(),Xa(s.dataset.view)}));Pe("#openLid").addEventListener("click",()=>{_r=!_r,Pe("#openLid").setAttribute("aria-pressed",String(_r))});Pe("#openMod").addEventListener("click",()=>{xr=!xr,Pe("#openMod").setAttribute("aria-pressed",String(xr))});Pe("#reseed")&&Pe("#reseed").addEventListener("click",()=>k2(1+Math.floor(Math.random()*1e6)));W2("estimulo");qa();Xa("top",!0);var $6={juego:"jugando",predecible:"acierto \xB7 est\xEDmulo ordenado",impredecible:"fallo \xB7 ruido 4 s",silencio:"fallo \xB7 silencio 4 s"},L2=0,I2=-1,mh=new y0(1,1,1),gh=new y0(.95,.72,.25),_h=new y0(.4,.62,1),xh=new y0;function X2(s){let e=Math.min(100,s-P2);P2=s;let t=be&&m0.growth.done;if(t&&be.replay<Zi){be.replay+=e;let n=Math.floor(m0.growth.total*Math.min(1,be.replay/Zi));s-be.lastField>350&&(be.lastField=s,gr(n)),Pe("#phase").textContent=be.replay<Zi?"creciendo \xB7 d\xEDa "+Math.max(1,Math.ceil(n/yr.PARAMS.stepsPerDay))+" de 21":"red formada \xB7 empieza el juego",be.replay>=Zi&&m0.setCondition(G2),be.replay>=Zi&&gr(1e9)}else if(t){mr+=e*Ga;let n=Math.floor(mr);mr-=n;let i=performance.now();for(;n-- >0;)if(m0.step(),performance.now()-i>22){mr=0;break}m0.spikeLog=[];let r=m0.t;G6(),s-be.lastField>3e3&&(be.lastField=s,gr(1e9));let o=m0.ball.y,a=m0.ball.x,c=v2+S2+pr,l=M2-S2-pr;Oa(T2,Rn+pr+o*(Ua-Rn-2*pr),c+a*(l-c)),T2.o.visible=m0.phase==="juego"||m0.phase==="predecible",Oa(q6,Rn+m0.paddle*(Ua-Rn),v2),Yi+=Math.max(-.02,Math.min(.02,o-Yi))*Math.min(1,e*Ga/16),Yi=Math.min(1-.18,Math.max(.18,Yi)),Oa(Y6,Rn+Yi*(Ua-Rn),M2),za=Math.max(za*.999,m0.rateUp),ka=Math.max(ka*.999,m0.rateDown);let h=Math.min(1,m0.rateUp/za),u=Math.min(1,m0.rateDown/ka);if(Sr.UP.position.y=w2.UP-8e-4*h,Sr.DN.position.y=w2.DN-8e-4*u,Ki.UP&&(Ki.UP.emissiveIntensity=4*h),Ki.DN&&(Ki.DN.emissiveIntensity=4*u),s-L2>250){L2=s;let d=Math.floor(r/6e4);Pe("#sTime").textContent=d+":"+String(Math.floor(r/1e3)%60).padStart(2,"0");let p=m0.summary(r-12e4,r+1);Pe("#sHits").textContent=p.n?p.hitsPerRally.toFixed(2):"\u2013";let g=Pe("#phase");if(g.dataset.phase!==m0.phase&&(g.dataset.phase=m0.phase,g.textContent=$6[m0.phase]),B2(m0.totalHits,m0.totalMisses),d!==I2){I2=d;let _=[];for(let m=0;m<d;m++){let f=m0.summary(m*6e4,(m+1)*6e4);_.push(f.n?f.hitsPerRally:0)}z2(_)}}}if(Fa+=((_r?-I6:0)-Fa)*Math.min(1,e/160),Ba+=((xr?-N6:0)-Ba)*Math.min(1,e/160),H2.position.x=W6.x+Fa,V2.position.z=X6.z-Ba,gi.userData.target!==void 0&&(gi.position.z+=(gi.userData.target-gi.position.z)*Math.min(1,e/120)),He){He.t=Math.min(1,He.t+e/700);let n=1-Math.pow(1-He.t,3);Ve.position.lerpVectors(He.from.pos,He.to.pos,n),Ve.up.lerpVectors(He.from.up,He.to.up,n).normalize(),rn.target.lerpVectors(He.from.target,He.to.target,n),He.t>=1&&(He=null)}rn.update(),xt.render(yt,Ve),requestAnimationFrame(X2)}window.__started=!0;B2(0,0);z2([]);Pe("#phase").textContent="sembrando\u2026";requestAnimationFrame(X2);k2(1);
+    }`});{let t=new Ze({color:5263440,roughness:.5}),n=new Lt((vr-Ji)/1e3,.00262-.00123,(ji-xi)/1e3),i=new K0(n,[t,t,B6,t,t,t]);i.position.copy(it((Ji+vr)/2e3,(xi+ji)/2e3,(.00123+.00262)/2)),i.receiveShadow=!0,yt.add(i)}var A2=Fe("tapa vidrio");A2&&(A2.material=new ke({color:1908773,roughness:.12,metalness:0,transparent:!0,opacity:.32,clearcoat:.3,clearcoatRoughness:.1,envMapIntensity:.15,depthWrite:!1}));var z6=new Ze({color:10212122,roughness:.35});Fe("paleta neuronas")&&Fe("paleta neuronas").traverse(s=>{s.isMesh&&(s.material=z6)});for(let s of["neurona B (en reposo)","neurona A (siente)","neurona C (dispara)","neurona motora SUBE (dispara)","neurona motora BAJA (en reposo)"]){let e=Fe(s);e&&(e.visible=!1)}var m0=null,be=null;function Ka(s,e,t){let n=document.createElement("canvas");n.width=n.height=64;let i=n.getContext("2d"),r=i.createRadialGradient(32,32,0,32,32,32);return r.addColorStop(0,`rgba(${s},${e},${t},1)`),r.addColorStop(.45,`rgba(${s},${e},${t},0.5)`),r.addColorStop(1,`rgba(${s},${e},${t},0)`),i.fillStyle=r,i.fillRect(0,0,64,64),n}var E2=Ka(255,255,255),k6=Ka(255,0,0),H6=Ka(0,0,255);async function k2(s){for(be=null,m0=new yr({seed:s,condition:"estimulo"}),Pe("#phase").textContent="sembrando\u2026";!m0.growth.done;){let e=performance.now();for(;!m0.growth.done&&performance.now()-e<12;)m0.growStep();Pe("#phase").textContent="creciendo \xB7 d\xEDa "+Math.min(21,Math.ceil(m0.growth.step/yr.PARAMS.stepsPerDay))+" de 21 (calculando)",await new Promise(t=>requestAnimationFrame(t))}be={replay:0,lastField:-1e9,cellStrength:new Float32Array(m0.N)},gr(0)}var Oe={pLow:.6,synQ:.99,axA0:.06,axA1:.2,axW0:.08,axW1:.12,denA:.2,denW:.15,blur:.25,somR0:.5,somR1:.9,somA:.65,knR0:.35,knR1:.8,knA:.8};function V6(){let s=be.cellStrength,e=new Float32Array(m0.N),t=yr.PARAMS;s.fill(0);let n=m0.syn.pre.length,i=m0.W||m0.syn.w;for(let l=0;l<n;l++){let h=m0.syn.pre[l];m0.inh[h]||(s[h]+=i[l]/t.wMax,e[h]++)}for(let l=0;l<m0.N;l++)s[l]=e[l]?s[l]/e[l]:0;let r=Array.from(s).filter((l,h)=>!m0.inh[h]).sort((l,h)=>l-h),o=r[Math.floor(r.length*Oe.pLow)],a=r[Math.floor(r.length*.98)];for(let l=0;l<m0.N;l++)s[l]=m0.inh[l]?0:Math.max(0,Math.min(1,(s[l]-o)/(a-o||1)));let c=Array.from(i).sort((l,h)=>l-h);return be.wq=c[Math.floor(c.length*Oe.synQ)],be.wmx=c[c.length-1],s}function gr(s){let e=V6(),t=m0.W||m0.syn.w,n=Mr.getContext("2d");n.clearRect(0,0,on,$i),n.lineCap="round",n.strokeStyle="#fff";let i=m0.seg,r=i.x0.length,o=6;for(let p=0;p<o;p++){n.beginPath();let g=!1;for(let m=0;m<r&&!(i.born[m]>s);m++)Math.min(o-1,Math.floor(e[i.cell[m]]*o))===p&&(n.moveTo(nn(i.y0[m]),sn(i.x0[m])),n.lineTo(nn(i.y1[m]),sn(i.x1[m])),g=!0);let _=p/(o-1);g&&(n.globalAlpha=Oe.axA0+Oe.axA1*_,n.lineWidth=(Oe.axW0+Oe.axW1*_)*Ut,n.stroke())}let a=m0.den;n.globalAlpha=Oe.denA,n.lineWidth=Oe.denW*Ut,n.beginPath();for(let p=0;p<a.x0.length&&!(a.born[p]>s);p++)n.moveTo(nn(a.y0[p]),sn(a.x0[p])),n.lineTo(nn(a.y1[p]),sn(a.x1[p]));n.stroke(),n.globalAlpha=1;let c=Tr.getContext("2d");c.globalCompositeOperation="source-over",c.fillStyle="#000",c.fillRect(0,0,on,$i),c.globalCompositeOperation="lighter",c.filter="blur("+(Oe.blur*Ut).toFixed(1)+"px)",c.drawImage(Mr,0,0),c.filter="none";for(let p=0;p<m0.N;p++){let g=(Oe.somR0+Oe.somR1*(m0.inh[p]?.2:e[p]))*Ut;c.globalAlpha=Oe.somA,c.drawImage(E2,nn(m0.cy[p])-g,sn(m0.cx[p])-g,2*g,2*g)}let l=m0.syn,h=l.pre.length,u=be.wq,d=be.wmx;for(let p=0;p<h;p++){if(l.born[p]>s||m0.inh[l.pre[p]]||t[p]<u)continue;let g=(t[p]-u)/(d-u||1),_=(Oe.knR0+Oe.knR1*g)*Ut;c.globalAlpha=Math.min(1,Oe.knA*(.3+g)),c.drawImage(E2,nn(l.y[p])-_,sn(l.x[p])-_,2*_,2*_)}c.globalAlpha=1,c.globalCompositeOperation="source-over",wr.needsUpdate=!0}function G6(){let s=Cn.getContext("2d"),e=Cn.width/on,t=m0.t;s.globalCompositeOperation="source-over",s.fillStyle="#000",s.fillRect(0,0,Cn.width,Cn.height),s.globalCompositeOperation="lighter";for(let i=0;i<m0.N;i++){let r=t-m0.lastSpike[i];if(r>90)continue;let o=1-r/90,a=(1.4+1.2*o)*Ut*e;s.globalAlpha=o,s.drawImage(k6,nn(m0.cy[i])*e-a,sn(m0.cx[i])*e-a,2*a,2*a)}let n=m0.stimLog;for(let i=Math.max(0,n.length-80);i<n.length;i+=4){let r=t-n[i];if(r>60)continue;let o=1-r/60,a=n[i+3]>=0?n[i+3]:-n[i+3],c=a*1.3*Ut*e;s.globalAlpha=o*.8,s.drawImage(H6,nn(n[i+2])*e-c,sn(n[i+1])*e-c,2*c,2*c)}n.length>2e3&&(m0.stimLog=n.slice(n.length-400)),s.globalAlpha=1,s.globalCompositeOperation="source-over",Rr.needsUpdate=!0}var H2=Fe("tapa deslizante"),V2=Fe("modulo deslizante"),W6=H2.position.clone(),X6=V2.position.clone();function Ja(s){let e=Fe(s),n=new ze().setFromObject(e).getCenter(new P);return{o:e,base:e.position.clone(),c0:n}}var T2=Ja("pelota"),q6=Ja("paleta neuronas"),Y6=Ja("paleta adversaria");function Oa(s,e,t){let n=it(e,t,0);s.o.position.x=s.base.x+(n.x-s.c0.x),s.o.position.z=s.base.z+(n.z-s.c0.z)}var Sr={UP:Fe("tecla SUBE"),DN:Fe("tecla BAJA")},w2={UP:Sr.UP.position.y,DN:Sr.DN.position.y};function Va(s){let e=Fe(s),t=null;return e&&e.traverse(n=>{n.isMesh&&!t&&(n.material=n.material.clone(),t=n.material)}),t}var Ki={UP:Va("aro SUBE"),DN:Va("aro BAJA")};for(let s of Object.values(Ki))s&&(s.emissive=new y0(.62,.95,.15),s.color=new y0(.1,.1,.11));var Z6=["EST","SIL","S/F","REP"].map(s=>Va("led "+s)),gi=Fe("corredera condicion"),K6=gi.position.z,J6=.0065,R2=Fe("puntaje"),C2=Fe("evolucion");R2&&R2.traverse(s=>{s.isMesh&&(s.material=new Ue({map:Ya,toneMapped:!1}))});C2&&C2.traverse(s=>{s.isMesh&&(s.material=new Ue({map:_i,toneMapped:!1}))});var j6=["estimulo","silencio","sinfeedback","reposo"],G2="estimulo",Ga=1,mr=0,P2=performance.now(),_r=!1,xr=!1,Fa=0,Ba=0,za=8,ka=8,Yi=.5,Zi=9e3;function W2(s){G2=s,m0&&m0.growth.done&&m0.setCondition(s),document.querySelectorAll("#conds button").forEach(t=>t.setAttribute("aria-pressed",String(t.dataset.cond===s)));let e=j6.indexOf(s);Z6.forEach((t,n)=>{t&&(t.emissive=new y0(.62,.95,.15),t.emissiveIntensity=n===e?3:0,t.color=new y0(n===e?10212122:1710618))}),gi.userData.target=K6-e*J6}document.querySelectorAll("#conds button").forEach(s=>s.addEventListener("click",()=>W2(s.dataset.cond)));document.querySelectorAll("#speeds button").forEach(s=>s.addEventListener("click",()=>{Ga=+s.dataset.speed,document.querySelectorAll("#speeds button").forEach(e=>e.setAttribute("aria-pressed",String(e===s)))}));document.querySelectorAll("#views button").forEach(s=>s.addEventListener("click",()=>{s.dataset.view==="top"&&qa(),Xa(s.dataset.view)}));Pe("#openLid").addEventListener("click",()=>{_r=!_r,Pe("#openLid").setAttribute("aria-pressed",String(_r))});Pe("#openMod").addEventListener("click",()=>{xr=!xr,Pe("#openMod").setAttribute("aria-pressed",String(xr))});Pe("#reseed")&&Pe("#reseed").addEventListener("click",()=>k2(1+Math.floor(Math.random()*1e6)));W2("estimulo");qa();Xa("top",!0);var $6={juego:"jugando",predecible:"acierto \xB7 est\xEDmulo ordenado",impredecible:"fallo \xB7 ruido 4 s",silencio:"fallo \xB7 silencio 4 s"},L2=0,I2=-1,mh=new y0(1,1,1),gh=new y0(.95,.72,.25),_h=new y0(.4,.62,1),xh=new y0;function X2(s){let e=Math.min(100,s-P2);P2=s;let t=be&&m0.growth.done;if(t&&be.replay<Zi){be.replay+=e;let n=Math.floor(m0.growth.total*Math.min(1,be.replay/Zi));s-be.lastField>350&&(be.lastField=s,gr(n)),Pe("#phase").textContent=be.replay<Zi?"creciendo \xB7 d\xEDa "+Math.max(1,Math.ceil(n/yr.PARAMS.stepsPerDay))+" de 21":"red formada \xB7 empieza el juego",be.replay>=Zi&&m0.setCondition(G2),be.replay>=Zi&&gr(1e9)}else if(t){mr+=e*Ga;let n=Math.floor(mr);mr-=n;let i=performance.now();for(;n-- >0;)if(m0.step(),performance.now()-i>22){mr=0;break}m0.spikeLog=[];let r=m0.t;G6(),s-be.lastField>3e3&&(be.lastField=s,gr(1e9));let o=m0.ball.y,a=m0.ball.x,c=v2+S2+pr,l=M2-S2-pr;Oa(T2,Rn+pr+o*(Ua-Rn-2*pr),c+a*(l-c)),T2.o.visible=m0.phase==="juego"||m0.phase==="predecible",Oa(q6,Rn+m0.paddle*(Ua-Rn),v2),Yi+=Math.max(-.02,Math.min(.02,o-Yi))*Math.min(1,e*Ga/16),Yi=Math.min(1-.18,Math.max(.18,Yi)),Oa(Y6,Rn+Yi*(Ua-Rn),M2),za=Math.max(za*.999,m0.rateUp),ka=Math.max(ka*.999,m0.rateDown);let h=Math.min(1,m0.rateUp/za),u=Math.min(1,m0.rateDown/ka);if(Sr.UP.position.y=w2.UP-8e-4*h,Sr.DN.position.y=w2.DN-8e-4*u,Ki.UP&&(Ki.UP.emissiveIntensity=4*h),Ki.DN&&(Ki.DN.emissiveIntensity=4*u),s-L2>250){L2=s;let d=Math.floor(r/6e4);Pe("#sTime").textContent=d+":"+String(Math.floor(r/1e3)%60).padStart(2,"0");let p=m0.summary(r-12e4,r+1);Pe("#sHits").textContent=p.n?p.hitsPerRally.toFixed(2):"\u2013";let g=Pe("#phase");if(g.dataset.phase!==m0.phase&&(g.dataset.phase=m0.phase,g.textContent=$6[m0.phase]),B2(m0.totalHits,m0.totalMisses),d!==I2){I2=d;let _=[];for(let m=0;m<d;m++){let f=m0.summary(m*6e4,(m+1)*6e4);_.push(f.n?f.hitsPerRally:0)}z2(_)}}}if(Fa+=((_r?-I6:0)-Fa)*Math.min(1,e/160),Ba+=((xr?-N6:0)-Ba)*Math.min(1,e/160),H2.position.x=W6.x+Fa,V2.position.z=X6.z-Ba,gi.userData.target!==void 0&&(gi.position.z+=(gi.userData.target-gi.position.z)*Math.min(1,e/120)),He){He.t=Math.min(1,He.t+e/700);let n=1-Math.pow(1-He.t,3);Ve.position.lerpVectors(He.from.pos,He.to.pos,n),Ve.up.lerpVectors(He.from.up,He.to.up,n).normalize(),rn.target.lerpVectors(He.from.target,He.to.target,n),He.t>=1&&(He=null)}rn.update(),xt.render(yt,Ve),requestAnimationFrame(X2)}window.__started=!0;B2(0,0);z2([]);Pe("#phase").textContent="sembrando\u2026";requestAnimationFrame(X2);k2(1);
 /*! Bundled license information:
 
 three/build/three.module.js:
