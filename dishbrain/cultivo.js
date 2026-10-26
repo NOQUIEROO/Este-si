@@ -73,6 +73,10 @@
     stimMode: 'pantalla',
     bandH: 14,               // alto de la franja de electrodos en modo 'lado' (mm)
     plasticMotor: false,
+    // como el paper (Kagan et al. 2022): sin premio químico ni ruido en las conexiones; al fallar, un electrodo al azar
+    // 5 veces por segundo durante 4 s; al acertar, todos juntos a 100 por segundo durante 0,1 s; las conexiones cambian
+    // solo por STDP (lo que dispara junto se refuerza), aplicada cada 100 ms con intensidad stdpRate
+    paper: true, stdpRate: 0.05,
     missScale: 1,            // cuánto pesa el castigo de una falla (0: solo se premian los aciertos)     // true: el premio solo cambia las conexiones que llegan a las células motoras
     // aprendizaje
     tauTrace: 6, tauElig: 900, aPlus: 1.0, aMinus: 0.25, lr: 0.6,
@@ -422,8 +426,9 @@
     if (this.phase === 'predecible' || this.phase === 'gol') {
       if (this.t % 10 === 0) for (let k = 0; k < 8; k++) this.stimDisk(c.x0 + (k + 0.5) * (c.x1 - c.x0) / 8, (c.y0 + c.y1) / 2, 40);
     } else if (this.phase === 'impredecible') {
-      if (r() < 0.04) this.stimDisk(c.x0 + r() * (c.x1 - c.x0), c.y0 + r() * (c.y1 - c.y0), 6);
-      if (C.jitter && r() < 0.5) { const s = Math.floor(r() * this.S); if (!this.inh[this.pre[s]]) this.W[s] = Math.max(0, Math.min(P.wMax, this.W[s] + r.gauss() * P.jitter)); }
+      if (P.paper) { if (this.t >= this.nextPulse) { this.stimDisk(c.x0 + r() * (c.x1 - c.x0), c.y0 + r() * (c.y1 - c.y0), 6); this.nextPulse = this.t + 200; } }
+      else if (r() < 0.04) this.stimDisk(c.x0 + r() * (c.x1 - c.x0), c.y0 + r() * (c.y1 - c.y0), 6);
+      if (!P.paper && C.jitter && r() < 0.5) { const s = Math.floor(r() * this.S); if (!this.inh[this.pre[s]]) this.W[s] = Math.max(0, Math.min(P.wMax, this.W[s] + r.gauss() * P.jitter)); }
     } else if (this.phase === 'juego' && C.sensory && this.t >= this.nextPulse) {
       for (const g of this.targets()) { if (g.rect) this.stimRect(g.rect); else if (g.half != null) this.stimStrip(g); else this.stimDisk(g.x, g.y, g.r); }
       const f = 4 + 36 * Math.min(1, Math.max(0, 1 - this.ball.x));
@@ -444,21 +449,21 @@
   Cultivo.prototype.onHit = function () {
     const C = CONDITIONS[this.condition];
     this.rally++; this.totalHits++; this.lastEvent = 'golpe';
-    this.modulate(C.modHit * (1 - this.expect)); this.expect += (1 - this.expect) * P.expectRate;
+    if (!P.paper) this.modulate(C.modHit * (1 - this.expect)); this.expect += (1 - this.expect) * P.expectRate;
     if (C.hit === 'predecible') { this.phase = 'predecible'; this.phaseEnd = this.t + P.hitMs; }
   };
   // gol de las neuronas: el adversario no llegó. Mismo premio que un acierto (estímulo ordenado) y saque nuevo
   Cultivo.prototype.onGoal = function () {
     const C = CONDITIONS[this.condition];
     this.goals++; this.lastEvent = 'gol'; this.rallies.push({ t: this.t, hits: this.rally, gol: true }); this.rally = 0;
-    this.modulate(C.modHit * (1 - this.expect)); this.expect += (1 - this.expect) * P.expectRate;
+    if (!P.paper) this.modulate(C.modHit * (1 - this.expect)); this.expect += (1 - this.expect) * P.expectRate;
     if (C.hit === 'predecible') { this.phase = 'gol'; this.phaseEnd = this.t + P.hitMs; }   // la pelota se detiene mientras llega el premio
     else this.serve();
   };
   Cultivo.prototype.onMiss = function () {
     const C = CONDITIONS[this.condition];
     this.totalMisses++; this.lastEvent = 'fallo'; this.rallies.push({ t: this.t, hits: this.rally }); this.rally = 0;
-    this.modulate(C.modMiss * (this.expect + P.missFloor) * P.missScale); this.expect += (0 - this.expect) * P.expectRate;
+    if (!P.paper) this.modulate(C.modMiss * (this.expect + P.missFloor) * P.missScale); this.expect += (0 - this.expect) * P.expectRate;
     if (C.miss === 'impredecible' || C.miss === 'silencio') { this.phase = C.miss; this.phaseEnd = this.t + P.missMs; }
     else this.serve();
   };
@@ -518,6 +523,7 @@
       this.xPre[i] += 1; this.yPost[i] += 1;
       if (this.zone[i] === 2) nUp++; else if (this.zone[i] === 3) nDown++;
     }
+    if (P.paper && this.condition !== 'reposo' && this.t % 100 === 0 && P.stdpRate > 0) { const lr = P.lr; P.lr = P.stdpRate; this.modulate(1); P.lr = lr; }
     if (this.t % 10 === 0) { const dE = Math.exp(-10 / P.tauElig); for (let s = 0; s < this.S; s++) E[s] *= dE; }
     const dR = Math.exp(-1 / P.tauRate);
     this.rateUp = this.rateUp * dR + nUp * 40 / Math.max(1, this.upCells.length);
