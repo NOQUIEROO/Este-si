@@ -4352,7 +4352,7 @@ void main() {
       float core = smoothstep(0.55, 1.0, f);
       vec2 gr = vec2(dFdx(f), dFdy(f)) / max(fwidth(vec2(xm, ym)).x, 1e-4);
       float relief = clamp(0.85 + dot(normalize(vec3(gr * 0.25, 1.0)).xy, vec2(-0.5, 0.6)) * 0.6, 0.5, 1.25);
-      vec3 tcol = mix(vec3(0.30, 0.13, 0.01), vec3(0.88, 0.58, 0.16), core) * relief;
+      vec3 tcol = mix(vec3(0.16, 0.07, 0.004), vec3(0.52, 0.31, 0.05), core) * relief;   // el ocre de tus neuronas de Blender
       vec4 a = texture2D(tAct, uv);
       vec3 col = mix(base, tcol, tissue);
       col += vec3(1.0, 0.82, 0.5) * a.r * tissue * 1.6;               // el tejido se enciende por dentro donde disparan
