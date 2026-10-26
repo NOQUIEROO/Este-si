@@ -77,7 +77,9 @@
     // 5 veces por segundo durante 4 s; al acertar, todos juntos a 100 por segundo durante 0,1 s; las conexiones cambian
     // solo por STDP (lo que dispara junto se refuerza), aplicada cada 100 ms con intensidad stdpRate
     paper: true, stdpRate: 0.05,
-    missStim: 2,             // la descarga al fallar es el doble de fuerte que la del juego (150 mV contra 75 mV en el paper)
+    missStim: 2,
+    // zona de entrada del paper: una fila de sitios de estímulo entre la cancha y las zonas motoras
+    sites: 8, siteY: -49, siteR: 3.2, restMs: 4000, gainTarget: 20,             // la descarga al fallar es el doble de fuerte que la del juego (150 mV contra 75 mV en el paper)
     missScale: 1,            // cuánto pesa el castigo de una falla (0: solo se premian los aciertos)     // true: el premio solo cambia las conexiones que llegan a las células motoras
     // aprendizaje
     tauTrace: 6, tauElig: 900, aPlus: 1.0, aMinus: 0.25, lr: 0.6,
@@ -405,6 +407,12 @@
   // dónde apuntan los electrodos ahora (según lo que se le muestra al cultivo)
   Cultivo.prototype.targets = function () {
     const m = P.stimMode, c = P.court, b = this.ballOnPlate(), out = [];
+    if (m === 'paper') {
+      // la pelota respecto de la paleta → uno de los sitios de entrada (codificación por lugar)
+      const rel = Math.max(0, Math.min(0.999, 0.5 + (this.ball.y - this.paddle)));
+      out.push(this.site(Math.floor(rel * P.sites)));
+      return out;
+    }
     if (m === 'sombra') {
       // la franja de electrodos junto a la línea de la paleta, a la altura exacta de la pelota (su sombra)
       const w = (c.x1 - c.x0) / 2, cx = c.x0 + this.ball.y * (c.x1 - c.x0);
@@ -422,12 +430,21 @@
     if (m === 'pantalla' || m === 'relativa+adv') out.push(this.advOnPlate());
     return out;
   };
+  Cultivo.prototype.site = function (k) {
+    const c = P.court, w = (c.x1 - c.x0) / P.sites;
+    return { x: c.x0 + (k + 0.5) * w, y: P.siteY, r: P.siteR };
+  };
   Cultivo.prototype.stimulate = function () {
     const C = CONDITIONS[this.condition], r = this.r, c = P.court;
     if (this.phase === 'predecible' || this.phase === 'gol') {
-      if (this.t % 10 === 0) for (let k = 0; k < 8; k++) this.stimDisk(c.x0 + (k + 0.5) * (c.x1 - c.x0) / 8, (c.y0 + c.y1) / 2, 40);
+      if (this.t % 10 === 0) {
+        if (P.stimMode === 'paper') for (let k = 0; k < P.sites; k++) { const g = this.site(k); this.stimDisk(g.x, g.y, g.r); }   // todos los sitios de entrada a la vez, 100 Hz
+        else for (let k = 0; k < 8; k++) this.stimDisk(c.x0 + (k + 0.5) * (c.x1 - c.x0) / 8, (c.y0 + c.y1) / 2, 40);
+      }
     } else if (this.phase === 'impredecible') {
-      if (P.paper) { if (this.t >= this.nextPulse) { const k = P.stimI; P.stimI = k * P.missStim; this.stimDisk(c.x0 + r() * (c.x1 - c.x0), c.y0 + r() * (c.y1 - c.y0), 6); P.stimI = k; this.nextPulse = this.t + 200; } }
+      if (P.stimMode === 'paper') {   // 150 mV (el doble), en sitios de entrada al azar, en momentos al azar (5 por segundo en promedio)
+        if (r() < 0.005) { const k = P.stimI; P.stimI = k * P.missStim; const g = this.site(Math.floor(r() * P.sites)); this.stimDisk(g.x, g.y, g.r); P.stimI = k; }
+      } else if (P.paper) { if (this.t >= this.nextPulse) { const k = P.stimI; P.stimI = k * P.missStim; this.stimDisk(c.x0 + r() * (c.x1 - c.x0), c.y0 + r() * (c.y1 - c.y0), 6); P.stimI = k; this.nextPulse = this.t + 200; } }
       else if (r() < 0.04) this.stimDisk(c.x0 + r() * (c.x1 - c.x0), c.y0 + r() * (c.y1 - c.y0), 6);
       if (!P.paper && C.jitter && r() < 0.5) { const s = Math.floor(r() * this.S); if (!this.inh[this.pre[s]]) this.W[s] = Math.max(0, Math.min(P.wMax, this.W[s] + r.gauss() * P.jitter)); }
     } else if (this.phase === 'juego' && C.sensory && this.t >= this.nextPulse) {
@@ -471,6 +488,12 @@
   Cultivo.prototype.updateGame = function (dt) {
     const b = this.ball;
     let vel = P.paddleGain * (this.rateDown - this.rateUp);
+    if (P.stimMode === 'paper') {   // el paper corrige cada zona hacia 20 Hz para que una zona más activa de base no gane siempre
+      const k = 1 - Math.exp(-dt / 30);
+      this.avgUp = (this.avgUp || P.gainTarget) + (this.rateUp - (this.avgUp || P.gainTarget)) * k;
+      this.avgDn = (this.avgDn || P.gainTarget) + (this.rateDown - (this.avgDn || P.gainTarget)) * k;
+      vel = P.paddleGain * (this.rateDown * P.gainTarget / Math.max(1, this.avgDn) - this.rateUp * P.gainTarget / Math.max(1, this.avgUp));
+    }
     vel = Math.max(-P.paddleVmax, Math.min(P.paddleVmax, vel));
     this.paddle = Math.max(P.paddleHalf, Math.min(1 - P.paddleHalf, this.paddle + vel * dt));
     if (this.phase !== 'juego' && this.phase !== 'predecible') return;
@@ -493,7 +516,11 @@
   Cultivo.prototype.step = function () {
     if (!this.growth.done) return;
     const n = this.N, r = this.r, D = this.D, slot = (this.t % D) * n;
-    if (this.phase !== 'juego' && this.t >= this.phaseEnd) { if (this.phase === 'predecible') this.phase = 'juego'; else this.serve(); }
+    if (this.phase !== 'juego' && this.t >= this.phaseEnd) {
+      if (this.phase === 'predecible') this.phase = 'juego';
+      else if (this.phase === 'impredecible' && P.stimMode === 'paper') { this.phase = 'descanso'; this.phaseEnd = this.t + P.restMs; }   // 4 s sin nada
+      else this.serve();
+    }
     this.stimulate();
     const v = this.v, u = this.u, inp = this.inp, buf = this.buf, sp = this.spiked;
     let nUp = 0, nDown = 0;
