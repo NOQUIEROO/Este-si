@@ -69,7 +69,9 @@
     //  'pelota'    solo la pelota (como DishBrain: el lado dice dónde está, la frecuencia qué tan cerca)
     //  'relativa'  la pelota corrida según dónde está la paleta: el lado dice si está arriba o abajo de la paleta
     //  'relativa+adv'  lo anterior más la paleta del adversario
+    //  'lado'      como DishBrain: siempre junto a la línea de la paleta; el lado dice si la pelota está arriba o abajo de la paleta y la frecuencia, qué tan cerca viene
     stimMode: 'pantalla',
+    plasticMotor: false,     // true: el premio solo cambia las conexiones que llegan a las células motoras
     // aprendizaje
     tauTrace: 6, tauElig: 900, aPlus: 1.0, aMinus: 0.25, lr: 0.6,
     expectRate: 0.05, missFloor: 0.3, jitter: 0.08,
@@ -389,7 +391,10 @@
   // dónde apuntan los electrodos ahora (según lo que se le muestra al cultivo)
   Cultivo.prototype.targets = function () {
     const m = P.stimMode, c = P.court, b = this.ballOnPlate(), out = [];
-    if (m === 'relativa' || m === 'relativa+adv') {
+    if (m === 'lado') {
+      const rel = Math.max(0, Math.min(1, 0.5 + (this.ball.y - this.paddle)));
+      out.push({ x: c.x0 + rel * (c.x1 - c.x0), y: P.padY - 4, r: P.ballR });
+    } else if (m === 'relativa' || m === 'relativa+adv') {
       const rel = Math.max(0, Math.min(1, 0.5 + (this.ball.y - this.paddle)));
       out.push({ x: c.x0 + rel * (c.x1 - c.x0), y: b.y, r: P.ballR });
     } else out.push({ x: b.x, y: b.y, r: P.ballR });
@@ -413,7 +418,7 @@
   Cultivo.prototype.modulate = function (m) {
     if (m !== 0) {
       const W = this.W, E = this.E, k = P.lr * m;
-      for (let s = 0; s < this.S; s++) if (!this.inh[this.pre[s]]) W[s] = Math.max(0, Math.min(P.wMax, W[s] + k * E[s]));
+      for (let s = 0; s < this.S; s++) if (!this.inh[this.pre[s]] && (!P.plasticMotor || this.zone[this.post[s]] >= 2)) W[s] = Math.max(0, Math.min(P.wMax, W[s] + k * E[s]));
       // escalado sináptico por célula receptora
       const sum = new Float32Array(this.N);
       for (let s = 0; s < this.S; s++) if (!this.inh[this.pre[s]]) sum[this.post[s]] += W[s];

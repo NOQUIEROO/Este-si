@@ -5,12 +5,12 @@ import fs from 'fs';
 const require = createRequire(import.meta.url);
 const Cultivo = require('./cultivo.js');
 const [core, cores, budget] = process.argv.slice(2).map(Number);
+const MIN = 20;   // minutos de juego por corrida
 const t0 = Date.now(), base = JSON.parse(JSON.stringify(Cultivo.PARAMS));
 // variantes a probar: intensidad de aprendizaje, memoria de las conexiones, tamaño de lo que siente cada electrodo
 // qué le muestran los electrodos (stimMode) e intensidad de aprendizaje; y controles sin retroalimentación
 const variantes = [];
-for (const stimMode of ['relativa', 'relativa+adv', 'pelota', 'pantalla']) for (const lr of [0.6, 2]) variantes.push({ stimMode, lr });
-for (const stimMode of ['relativa', 'pantalla']) variantes.push({ stimMode, control: true });
+variantes.push({ stimMode: 'lado', lr: 0.6 }, { stimMode: 'lado', lr: 0.6, plasticMotor: true }, { stimMode: 'lado', lr: 2, plasticMotor: true }, { stimMode: 'lado', control: true });
 const corridas = [];
 for (const seed of [11, 22]) for (const v of variantes) corridas.push({ v, seed });
 const mias = corridas.filter((_, k) => k % cores === core);
@@ -22,7 +22,7 @@ for (const { v, seed } of mias) {
   const c = new Cultivo({ seed, condition: v.control ? 'sinfeedback' : 'estimulo' });
   c.growAll(); c.setCondition(v.control ? 'sinfeedback' : 'estimulo');
   const curva = []; let cortada = false;
-  for (let m = 0; m < 12.5; m += 2.5) {
+  for (let m = 0; m < MIN; m += 2.5) {
     if ((Date.now() - t0) / 1000 > budget - 60) { cortada = true; break; }   // terminar a tiempo para poder escribir
     c.run(150000); const s = c.summary(m * 60000, (m + 2.5) * 60000); curva.push(+s.hitsPerRally.toFixed(3));
   }
