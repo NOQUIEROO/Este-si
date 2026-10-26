@@ -328,7 +328,9 @@ const fpx = (y) => (y - PYA) * pxmm, fpy = (x) => (x - PXA) * pxmm;
 const fieldCv = document.createElement('canvas'); fieldCv.width = FW; fieldCv.height = FH;
 const linesCv = document.createElement('canvas'); linesCv.width = FW; linesCv.height = FH;
 const actCv = document.createElement('canvas'); actCv.width = Math.round(FW / 2); actCv.height = Math.round(FH / 2);
-const fieldTex = new THREE.CanvasTexture(fieldCv), actTex = new THREE.CanvasTexture(actCv);
+const heightCv = document.createElement('canvas'); heightCv.width = FW; heightCv.height = FH;
+const fieldTex = new THREE.CanvasTexture(fieldCv), actTex = new THREE.CanvasTexture(actCv), heightTex = new THREE.CanvasTexture(heightCv);
+heightTex.generateMipmaps = false; heightTex.minFilter = THREE.LinearFilter;
 fieldTex.generateMipmaps = false; fieldTex.minFilter = THREE.LinearFilter;
 actTex.generateMipmaps = false; actTex.minFilter = THREE.LinearFilter;
 const plateMat = new THREE.ShaderMaterial({
@@ -356,6 +358,9 @@ const plateMat = new THREE.ShaderMaterial({
       mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(xm))) * inWin);
       mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym + 4.2))) * step(abs(xm), 34.6) * step(0.5, fract(xm / 2.0)));   // línea del medio
       base = mix(base, vec3(0.85, 0.85, 0.8), mark * 0.75);
+      float fw = texture2D(tField, uv).r;
+      float thin = smoothstep(0.06, 0.2, fw) * (1.0 - smoothstep(0.38, 0.45, fw));   // axones finos: los caminos débiles entre grupos
+      base = mix(base, vec3(0.30, 0.17, 0.03), thin * 0.6);
       vec4 a = texture2D(tAct, uv);
       vec3 col = base + vec3(0.25, 0.85, 1.0) * a.b * 0.9;          // electrodos estimulando: celeste sobre la placa
       gl_FragColor = vec4(col, 1.0);
@@ -364,19 +369,20 @@ const plateMat = new THREE.ShaderMaterial({
     }`,
 });
 // el tejido en volumen: la superficie sube donde hay más masa (más axones juntos, conexiones más fuertes)
-const TH = 0.45, HMAX = 0.0016;   // umbral del tejido y altura máxima (1,6 mm)
+const TH = 0.45, HMAX = 0.0011;   // umbral del tejido y altura máxima (1,1 mm)
 const tissueMat = new THREE.ShaderMaterial({
-  uniforms: { tField: { value: fieldTex }, tAct: { value: actTex }, area: { value: new THREE.Vector4(PXA, PXB, PYA, PYB) }, th: { value: TH }, hmax: { value: HMAX },
+  uniforms: { tField: { value: fieldTex }, tHeight: { value: heightTex }, tAct: { value: actTex }, area: { value: new THREE.Vector4(PXA, PXB, PYA, PYB) }, th: { value: TH }, hmax: { value: HMAX },
               light: { value: new THREE.Vector3(-0.5, 0.8, 0.35).normalize() } },
   vertexShader: `
-    uniform sampler2D tField; uniform vec4 area; uniform float th, hmax;
+    uniform sampler2D tField, tHeight; uniform vec4 area; uniform float th, hmax;
     varying vec3 vW; varying vec2 vUv; varying float vF;
     vec2 uvOf(vec3 w) { float xm = w.x * 1000.0, ym = -w.z * 1000.0; return vec2((ym - area.z) / (area.w - area.z), 1.0 - (xm - area.x) / (area.y - area.x)); }
     void main(){
       vec4 w = modelMatrix * vec4(position, 1.0);
       vUv = uvOf(w.xyz);
       float f = texture2D(tField, vUv).r; vF = f;
-      w.y += smoothstep(th, 1.0, f) * hmax;          // lo fuerte crece en altura
+      float hf = texture2D(tHeight, vUv).r;             // altura de una versión suavizada: lomos redondeados, no picos
+      w.y += sqrt(clamp((hf - th * 0.8) / (1.0 - th * 0.8), 0.0, 1.0)) * hmax;   // lo fuerte crece más alto
       vW = w.xyz;
       gl_Position = projectionMatrix * viewMatrix * w;
     }`,
@@ -498,6 +504,9 @@ function paintTissue(step) {
   }
   F.globalAlpha = 1; F.globalCompositeOperation = 'source-over';
   fieldTex.needsUpdate = true;
+  const Hc = heightCv.getContext('2d'); Hc.clearRect(0, 0, FW, FH);
+  Hc.filter = 'blur(' + (0.55 * pxmm).toFixed(1) + 'px)'; Hc.drawImage(fieldCv, 0, 0); Hc.filter = 'none';
+  heightTex.needsUpdate = true;
 }
 // actividad: dónde dispararon las células en los últimos ms, y dónde estimulan los electrodos
 function paintActivity() {
