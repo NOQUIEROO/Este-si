@@ -71,7 +71,8 @@
     //  'relativa+adv'  lo anterior más la paleta del adversario
     //  'lado'      como DishBrain: siempre junto a la línea de la paleta; el lado dice si la pelota está arriba o abajo de la paleta y la frecuencia, qué tan cerca viene
     stimMode: 'pantalla',
-    plasticMotor: false,     // true: el premio solo cambia las conexiones que llegan a las células motoras
+    plasticMotor: false,
+    missScale: 1,            // cuánto pesa el castigo de una falla (0: solo se premian los aciertos)     // true: el premio solo cambia las conexiones que llegan a las células motoras
     // aprendizaje
     tauTrace: 6, tauElig: 900, aPlus: 1.0, aMinus: 0.25, lr: 0.6,
     expectRate: 0.05, missFloor: 0.3, jitter: 0.08,
@@ -443,7 +444,7 @@
   Cultivo.prototype.onMiss = function () {
     const C = CONDITIONS[this.condition];
     this.totalMisses++; this.lastEvent = 'fallo'; this.rallies.push({ t: this.t, hits: this.rally }); this.rally = 0;
-    this.modulate(C.modMiss * (this.expect + P.missFloor)); this.expect += (0 - this.expect) * P.expectRate;
+    this.modulate(C.modMiss * (this.expect + P.missFloor) * P.missScale); this.expect += (0 - this.expect) * P.expectRate;
     if (C.miss === 'impredecible' || C.miss === 'silencio') { this.phase = C.miss; this.phaseEnd = this.t + P.missMs; }
     else this.serve();
   };

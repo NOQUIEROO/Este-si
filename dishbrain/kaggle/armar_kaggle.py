@@ -28,6 +28,8 @@ for nombre, origen in ARCHIVOS.items():
 celdas.append(celda(
     '!node -v 2>/dev/null || (curl -fsSL https://nodejs.org/dist/v20.17.0/node-v20.17.0-linux-x64.tar.xz -o node.tar.xz '
     '&& mkdir -p node && tar -xf node.tar.xz -C node --strip-components=1 && ./node/bin/node -v)\n'))
+for k in ('VARIANTES', 'SEMILLAS', 'MIN'):   # configuración de esta tanda
+    if os.environ.get(k): celdas.append(celda('%env ' + k + '=' + os.environ[k] + '\n'))
 celdas.append(celda('!timeout 1080 bash corrida.sh\n'))
 
 cuaderno = {'cells': celdas, 'metadata': {'kernelspec': {'display_name': 'Python 3', 'language': 'python', 'name': 'python3'},
