@@ -120,8 +120,10 @@ function paintActivity() {
   // el electrodo que tiene asignada la pelota y las paletas (sigue a la pelota todo el tiempo)
   const C = cul.phase === 'juego' && cond !== 'reposo';
   if (C) {
-    const b = cul.ballOnPlate(); splat(B, AW, AH, apx(b.y), apy(b.x), P.ballR * 1.2 * amm, 0.3);
-    for (const p of [cul.paddleOnPlate(), cul.advOnPlate()]) splatStrip(B, AW, AH, apx(p.y), apy(p.x), p.half * amm, P.padR * amm, 0.22);
+    for (const g of cul.targets()) {
+      if (g.half != null) splatStrip(B, AW, AH, apx(g.y), apy(g.x), g.half * amm, P.padR * amm, 0.22);
+      else splat(B, AW, AH, apx(g.y), apy(g.x), g.r * 1.2 * amm, 0.3);
+    }
   }
   // los pulsos que de verdad salieron en los últimos 80 ms
   const Lg = cul.stimLog;
@@ -172,7 +174,7 @@ function loop() {
 }
 function sembrar(seed, trained) {
   state = 'growing'; seedNo = seed; lastMin = -1;
-  if (trained && trained.params) for (const k of ['lr', 'tauElig', 'ballR']) if (trained.params[k] != null) P[k] = trained.params[k];
+  if (trained && trained.params) for (const k of ['lr', 'tauElig', 'ballR', 'stimMode', 'paddleGain']) if (trained.params[k] != null) P[k] = trained.params[k];
   cul = new CU({ seed, condition: 'estimulo' });
   let lastDay = 0;
   while (!cul.growth.done) {

@@ -9,7 +9,9 @@ Después:
 import json, os
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
-ID = 'fabri9/pongbrain-entrenamiento'
+import os
+NAME = os.environ.get('KNAME', 'pongbrain-entrenamiento')
+ID = 'fabri9/' + NAME
 ARCHIVOS = {  # nombre en Kaggle: archivo de origen
     'cultivo.js': os.path.join(AQUI, '..', 'cultivo.js'),
     'entrenar.mjs': os.path.join(AQUI, 'entrenar.mjs'),
@@ -29,9 +31,9 @@ celdas.append(celda('!timeout 1080 bash corrida.sh\n'))
 
 cuaderno = {'cells': celdas, 'metadata': {'kernelspec': {'display_name': 'Python 3', 'language': 'python', 'name': 'python3'},
             'language_info': {'name': 'python'}}, 'nbformat': 4, 'nbformat_minor': 5}
-salida = os.path.join(AQUI, 'paquete'); os.makedirs(salida, exist_ok=True)
+salida = os.path.join(AQUI, os.environ.get('KDIR', 'paquete')); os.makedirs(salida, exist_ok=True)
 json.dump(cuaderno, open(os.path.join(salida, 'entrenamiento.ipynb'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
-json.dump({'id': ID, 'title': 'pongbrain-entrenamiento', 'code_file': 'entrenamiento.ipynb', 'language': 'python',
+json.dump({'id': ID, 'title': NAME, 'code_file': 'entrenamiento.ipynb', 'language': 'python',
            'kernel_type': 'notebook', 'is_private': True, 'enable_internet': True, 'enable_gpu': False},
           open(os.path.join(salida, 'kernel-metadata.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 print('listo:', salida)

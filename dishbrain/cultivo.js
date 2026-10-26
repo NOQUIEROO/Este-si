@@ -64,6 +64,12 @@
     inTotalE: 260, inTotalI: 520,   // tope de entrada total por célula (escalado sináptico)
     noise: 2.8, stimI: 24, stimP: 0.9,
     ballR: 4.5, padR: 3.0,
+    // qué le muestran los electrodos al cultivo mientras juega:
+    //  'pantalla'  la pelota, su paleta y la del adversario, cada una debajo de donde está (espejo)
+    //  'pelota'    solo la pelota (como DishBrain: el lado dice dónde está, la frecuencia qué tan cerca)
+    //  'relativa'  la pelota corrida según dónde está la paleta: el lado dice si está arriba o abajo de la paleta
+    //  'relativa+adv'  lo anterior más la paleta del adversario
+    stimMode: 'pantalla',
     // aprendizaje
     tauTrace: 6, tauElig: 900, aPlus: 1.0, aMinus: 0.25, lr: 0.6,
     expectRate: 0.05, missFloor: 0.3, jitter: 0.08,
@@ -380,6 +386,17 @@
     if (this.stimLog.length < 4000) this.stimLog.push(this.t, p.x, p.y, -p.half);
   };
   Cultivo.prototype.stimPaddle = function () { this.stimStrip(this.paddleOnPlate()); };
+  // dónde apuntan los electrodos ahora (según lo que se le muestra al cultivo)
+  Cultivo.prototype.targets = function () {
+    const m = P.stimMode, c = P.court, b = this.ballOnPlate(), out = [];
+    if (m === 'relativa' || m === 'relativa+adv') {
+      const rel = Math.max(0, Math.min(1, 0.5 + (this.ball.y - this.paddle)));
+      out.push({ x: c.x0 + rel * (c.x1 - c.x0), y: b.y, r: P.ballR });
+    } else out.push({ x: b.x, y: b.y, r: P.ballR });
+    if (m === 'pantalla') out.push(this.paddleOnPlate());
+    if (m === 'pantalla' || m === 'relativa+adv') out.push(this.advOnPlate());
+    return out;
+  };
   Cultivo.prototype.stimulate = function () {
     const C = CONDITIONS[this.condition], r = this.r, c = P.court;
     if (this.phase === 'predecible' || this.phase === 'gol') {
@@ -388,7 +405,7 @@
       if (r() < 0.04) this.stimDisk(c.x0 + r() * (c.x1 - c.x0), c.y0 + r() * (c.y1 - c.y0), 6);
       if (C.jitter && r() < 0.5) { const s = Math.floor(r() * this.S); if (!this.inh[this.pre[s]]) this.W[s] = Math.max(0, Math.min(P.wMax, this.W[s] + r.gauss() * P.jitter)); }
     } else if (this.phase === 'juego' && C.sensory && this.t >= this.nextPulse) {
-      const b = this.ballOnPlate(); this.stimDisk(b.x, b.y, P.ballR); this.stimPaddle(); this.stimStrip(this.advOnPlate());   // pelota, su paleta y la del adversario
+      for (const g of this.targets()) { if (g.half != null) this.stimStrip(g); else this.stimDisk(g.x, g.y, g.r); }
       const f = 4 + 36 * Math.min(1, Math.max(0, 1 - this.ball.x));
       this.nextPulse = this.t + Math.round(1000 / f);
     }
