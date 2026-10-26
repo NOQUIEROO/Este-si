@@ -59,7 +59,7 @@ try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPrefere
 catch (e) { window.__showError('este navegador no tiene gráficos 3D (WebGL) activados.'); throw e; }
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.95;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.background = STUDIO.clone();
@@ -78,7 +78,7 @@ const key = new THREE.DirectionalLight(0xfff4e6, 2.0); key.position.copy(B(0.16,
 key.shadow.mapSize.set(2048, 2048); Object.assign(key.shadow.camera, { left: -0.14, right: 0.14, top: 0.14, bottom: -0.14, near: 0.1, far: 1.2 });
 key.shadow.bias = -0.00015; key.shadow.normalBias = 0.0004; key.shadow.radius = 5; scene.add(key);
 const fill = new THREE.DirectionalLight(0xe9eeff, 0.45); fill.position.copy(B(0.35, 0.15, 0.25)); scene.add(fill);
-scene.add(new THREE.HemisphereLight(0xfffaf0, 0xcfc4ae, 0.9));   // rebote del estudio: los costados no quedan negros
+scene.add(new THREE.HemisphereLight(0xfffaf0, 0xc9bb9c, 0.6));   // rebote del estudio: los costados no quedan negros
 // la luz de las neuronas: una lámina en el borde superior de la cancha, desde la botonera hasta el arco del adversario, mirando hacia abajo
 RectAreaLightUniformsLib.init();
 const sheet = new THREE.RectAreaLight(0xf2ffe8, 10, 0.106, 0.0034);
