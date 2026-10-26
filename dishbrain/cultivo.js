@@ -42,25 +42,25 @@
     up:   { x0: -33.8, x1: 0.0,  y0: -67.5, y1: -52.5 },   // ventana bajo SUBE
     down: { x0: 0.0,   x1: 33.8, y0: -67.5, y1: -52.5 },   // ventana bajo BAJA
     // siembra y crecimiento
-    nCells: 600, fracInh: 0.2,
+    nCells: 1200, fracInh: 0.2,
     growDays: 21, stepsPerDay: 24,
     growStep: 0.35,          // mm que avanza la punta por paso
-    persist: 0.82,           // cuánto mantiene la dirección
-    branchP: 0.015, maxCones: 5,
-    axonMaxE: 46, axonMaxI: 7,   // largo máximo del axón (mm)
-    reachE: 1.3, reachI: 1.0,    // radio de las dendritas de la célula que recibe (mm)
-    maxSynOut: 70,
+    persist: 0.93,           // cuánto mantiene la dirección
+    branchP: 0.04, maxCones: 5,
+    axonMaxE: 220, axonMaxI: 7,  // largo máximo del axón (mm, placa ampliada)
+    reachE: 2.2, reachI: 1.0,    // radio de las dendritas de la célula que recibe (mm)
+    maxSynOut: 200,
     speed: 2.5,              // mm por ms: velocidad de la señal por el axón (escala ampliada)
     // actividad
     wE: [2.0, 6.0], wI: [3.0, 7.0], wMax: 14,
-    inTotalE: 40, inTotalI: 60,   // tope de entrada total por célula (escalado sináptico)
-    noise: 3.4, stimI: 24, stimP: 0.9,
+    inTotalE: 260, inTotalI: 520,   // tope de entrada total por célula (escalado sináptico)
+    noise: 2.8, stimI: 24, stimP: 0.9,
     ballR: 4.5, padR: 3.0,
     // aprendizaje
     tauTrace: 6, tauElig: 900, aPlus: 1.0, aMinus: 0.25, lr: 0.6,
     expectRate: 0.05, missFloor: 0.3, jitter: 0.08,
     // juego (igual que el motor original)
-    paddleHalf: 0.18, paddleGain: 0.08, paddleVmax: 2, ballSpeed: 0.62, tauRate: 90,
+    paddleHalf: 0.18, paddleGain: 0.3, paddleVmax: 2, ballSpeed: 0.62, tauRate: 90,
     missMs: 4000, hitMs: 100,
   };
   const CONDITIONS = {
