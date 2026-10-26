@@ -34,9 +34,10 @@ for (const { v, seed } of mias) {
   const c = new Cultivo({ seed, condition: v.control ? 'sinfeedback' : 'estimulo' });
   c.growAll(); c.setCondition(v.control ? 'sinfeedback' : 'estimulo');
   if (inicial) c.W.set(new Float32Array(Uint8Array.from(Buffer.from(inicial.W, 'base64')).buffer));
-  const curva = [], seg = []; let cortada = false;
+  const curva = [], seg = []; let cortada = false, tramo = 60;
   for (let m = 0; m < MIN; m += 2.5) {
-    if ((Date.now() - t0) / 1000 > budget - 60) { cortada = true; break; }   // terminar a tiempo para poder escribir
+    if ((Date.now() - t0) / 1000 + tramo * 1.2 > budget - 30) { cortada = true; break; }   // no empezar un tramo que no llega a terminar
+    const tt = Date.now();
     // además de golpes por rally: qué tan seguido la paleta se mueve hacia donde está la pelota (cuando viene)
     let bien = 0, n = 0;
     for (let k = 0; k < 150000; k++) {
@@ -44,6 +45,8 @@ for (const { v, seed } of mias) {
       if (k % 10 === 0 && c.phase === 'juego' && c.ball.vx < 0) { const d = c.ball.y - c.paddle, v = c.rateDown - c.rateUp; if (Math.abs(d) > 0.05 && v !== 0) { n++; if (Math.sign(d) === Math.sign(v)) bien++; } }
     }
     const s = c.summary(m * 60000, (m + 2.5) * 60000); curva.push(+s.hitsPerRally.toFixed(3)); seg.push(n ? +(bien / n).toFixed(3) : 0);
+    tramo = (Date.now() - tt) / 1000;
+    console.log('tramo', JSON.stringify(v), seed, m + 2.5, 'min', curva[curva.length - 1], Math.round(tramo) + 's');
   }
   if (curva.length < 2) break;
   if (cortada) console.log('cortada', JSON.stringify(v), seed);
