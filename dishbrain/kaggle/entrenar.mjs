@@ -21,16 +21,22 @@ for (const { v, seed } of mias) {
   Object.assign(Cultivo.PARAMS, base, v);
   const c = new Cultivo({ seed, condition: v.control ? 'sinfeedback' : 'estimulo' });
   c.growAll(); c.setCondition(v.control ? 'sinfeedback' : 'estimulo');
-  const curva = [];
-  for (let m = 0; m < 12.5; m += 2.5) { c.run(150000); const s = c.summary(m * 60000, (m + 2.5) * 60000); curva.push(+s.hitsPerRally.toFixed(3)); }
+  const curva = []; let cortada = false;
+  for (let m = 0; m < 12.5; m += 2.5) {
+    if ((Date.now() - t0) / 1000 > budget - 60) { cortada = true; break; }   // terminar a tiempo para poder escribir
+    c.run(150000); const s = c.summary(m * 60000, (m + 2.5) * 60000); curva.push(+s.hitsPerRally.toFixed(3));
+  }
+  if (curva.length < 2) break;
+  if (cortada) console.log('cortada', JSON.stringify(v), seed);
   const final = +(curva.slice(-2).reduce((a, b) => a + b) / 2).toFixed(3);
   const r = { v, seed, curva, final, goles: c.goals, golesAdv: c.totalMisses, golpes: c.totalHits, mejora: +(curva.slice(-2).reduce((a, b) => a + b) / 2 - curva.slice(0, 2).reduce((a, b) => a + b) / 2).toFixed(3) };
   fs.writeFileSync(`resultados/corrida_${core}_${corridas.indexOf(corridas.find((x) => x.v === v && x.seed === seed))}.json`, JSON.stringify(r));
   console.log(JSON.stringify(r));
   if (!v.control && (!mejor || r.final > mejor.final)) {
     mejor = r;
-    const W = Buffer.from(new Float32Array(c.W).buffer).toString('base64');
-    fs.writeFileSync(`resultados/pesos_nucleo_${core}.json`, JSON.stringify({ ...r, params: Cultivo.PARAMS, W }));
+    mejor.W = Buffer.from(new Float32Array(c.W).buffer).toString('base64'); mejor.params = { ...Cultivo.PARAMS };
   }
 }
+// el mejor de este núcleo, con sus pesos, en el registro (es lo que se puede leer desde afuera)
+if (mejor) { fs.writeFileSync(`resultados/pesos_nucleo_${core}.json`, JSON.stringify(mejor)); console.log('PESOS ' + JSON.stringify(mejor)); }
 console.log('núcleo', core, 'terminó en', Math.round((Date.now() - t0) / 1000), 's');
