@@ -17,6 +17,7 @@ ARCHIVOS = {  # nombre en Kaggle: archivo de origen
     'entrenar.mjs': os.path.join(AQUI, 'entrenar.mjs'),
     'corrida.sh': os.path.join(AQUI, 'corrida.sh'),
 }
+if os.environ.get('INICIAL'): ARCHIVOS['inicial.json'] = os.environ['INICIAL']   # para seguir entrenando un cultivo ya entrenado
 
 def celda(texto):
     return {'cell_type': 'code', 'metadata': {}, 'execution_count': None, 'outputs': [], 'source': texto.splitlines(True)}
