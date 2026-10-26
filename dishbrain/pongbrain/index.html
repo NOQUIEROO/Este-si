@@ -578,7 +578,7 @@ $('#reseed') && $('#reseed').addEventListener('click', () => sembrar(1 + Math.fl
 setCond('estimulo');
 fitTop(); setView('top', true);
 
-const PHASE = { juego: 'jugando', predecible: 'acierto · estímulo ordenado', impredecible: 'fallo · ruido 4 s', silencio: 'fallo · silencio 4 s' };
+const PHASE = { juego: 'jugando', gol: '¡gol de las neuronas! · estímulo ordenado', predecible: 'acierto · estímulo ordenado', impredecible: 'gol del adversario · ruido 4 s', silencio: 'gol del adversario · silencio 4 s' };
 let lastHud = 0, lastLcdMin = -1;
 const white = new THREE.Color(1, 1, 1), cE = new THREE.Color(0.95, 0.72, 0.25), cI = new THREE.Color(0.4, 0.62, 1), tmpC = new THREE.Color();
 
@@ -607,9 +607,7 @@ function frame(now) {
     placeAt(ball, W0 + BALL_R + by * (W1 - W0 - 2 * BALL_R), yp + bx * (ya - yp));
     ball.o.visible = cul.phase === 'juego' || cul.phase === 'predecible';
     placeAt(padN, W0 + cul.paddle * (W1 - W0), Y_PAD);
-    advX += Math.max(-0.02, Math.min(0.02, by - advX)) * Math.min(1, dt * speed / 16);
-    advX = Math.min(1 - 0.18, Math.max(0.18, advX));
-    placeAt(padA, W0 + advX * (W1 - W0), Y_ADV);
+    placeAt(padA, W0 + cul.adv * (W1 - W0), Y_ADV);   // el adversario de la simulación (puede no llegar)
     // botones SUBE / BAJA: las células que cayeron sobre esas zonas
     rateMaxU = Math.max(rateMaxU * 0.999, cul.rateUp); rateMaxD = Math.max(rateMaxD * 0.999, cul.rateDown);
     const pu = Math.min(1, cul.rateUp / rateMaxU), pd = Math.min(1, cul.rateDown / rateMaxD);
@@ -621,8 +619,9 @@ function frame(now) {
       $('#sTime').textContent = m + ':' + String(Math.floor(t / 1000) % 60).padStart(2, '0');
       const st = cul.summary(t - 120000, t + 1);
       $('#sHits').textContent = st.n ? st.hitsPerRally.toFixed(2) : '–';
-      const chip = $('#phase'); if (chip.dataset.phase !== cul.phase) { chip.dataset.phase = cul.phase; chip.textContent = PHASE[cul.phase]; }
-      drawScore(cul.totalHits, cul.totalMisses);
+      const chip = $('#phase'), label = PHASE[cul.phase] || cul.phase;
+      if (chip.textContent !== label) { chip.dataset.phase = cul.phase; chip.textContent = label; }
+      drawScore(cul.goals, cul.totalMisses);   // goles de las neuronas : goles del adversario
       if (m !== lastLcdMin) {
         lastLcdMin = m; const series = [];
         for (let k = 0; k < m; k++) { const s2 = cul.summary(k * 60000, (k + 1) * 60000); series.push(s2.n ? s2.hitsPerRally : 0); }

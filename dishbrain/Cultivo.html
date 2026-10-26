@@ -168,6 +168,7 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
     tauTrace: 6, tauElig: 900, aPlus: 1.0, aMinus: 0.25, lr: 0.6,
     expectRate: 0.05, missFloor: 0.3, jitter: 0.08,
     // juego (igual que el motor original)
+    advSpeed: 0.28,          // el adversario sigue a la pelota a esta velocidad (cancha por segundo): a veces no llega
     paddleHalf: 0.18, paddleGain: 0.3, paddleVmax: 2, ballSpeed: 0.62, tauRate: 90,
     missMs: 4000, hitMs: 100,
   };
@@ -441,7 +442,8 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
     for (let i = 0; i < n; i++) { if (this.zone[i] === 2) this.upCells.push(i); if (this.zone[i] === 3) this.downCells.push(i); }
     this.rateUp = 0; this.rateDown = 0;
     this.paddle = 0.5; this.phase = 'juego'; this.phaseEnd = 0; this.nextPulse = 0;
-    this.rally = 0; this.rallies = []; this.totalHits = 0; this.totalMisses = 0; this.expect = 0.2;
+    this.rally = 0; this.rallies = []; this.totalHits = 0; this.totalMisses = 0; this.goals = 0; this.expect = 0.2;
+    this.adv = 0.5; this.lastEvent = '';
     this.stimLog = [];   // [t, x, y, radio] de cada pulso, para dibujarlo
     this.serve();
   };
@@ -466,22 +468,27 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
     this.near(x, y, rad, (j) => { if (r() < P.stimP) this.inp[j] += P.stimI; });
     if (this.stimLog.length < 4000) this.stimLog.push(this.t, x, y, rad);
   };
-  Cultivo.prototype.stimPaddle = function () {
-    const p = this.paddleOnPlate(), r = this.r;
+  Cultivo.prototype.advOnPlate = function () {
+    const c = P.court; return { x: c.x0 + this.adv * (c.x1 - c.x0), y: P.advY, half: P.paddleHalf * (c.x1 - c.x0) };
+  };
+  // estimula la franja de células que hay debajo de una paleta (la propia o la del adversario)
+  Cultivo.prototype.stimStrip = function (p) {
+    const r = this.r;
     for (let x = p.x - p.half; x <= p.x + p.half; x += P.padR) {
       this.near(x, p.y, P.padR, (j) => { if (r() < P.stimP) this.inp[j] += P.stimI; });
     }
     if (this.stimLog.length < 4000) this.stimLog.push(this.t, p.x, p.y, -p.half);
   };
+  Cultivo.prototype.stimPaddle = function () { this.stimStrip(this.paddleOnPlate()); };
   Cultivo.prototype.stimulate = function () {
     const C = CONDITIONS[this.condition], r = this.r, c = P.court;
-    if (this.phase === 'predecible') {
+    if (this.phase === 'predecible' || this.phase === 'gol') {
       if (this.t % 10 === 0) for (let k = 0; k < 8; k++) this.stimDisk(c.x0 + (k + 0.5) * (c.x1 - c.x0) / 8, (c.y0 + c.y1) / 2, 40);
     } else if (this.phase === 'impredecible') {
       if (r() < 0.04) this.stimDisk(c.x0 + r() * (c.x1 - c.x0), c.y0 + r() * (c.y1 - c.y0), 6);
       if (C.jitter && r() < 0.5) { const s = Math.floor(r() * this.S); if (!this.inh[this.pre[s]]) this.W[s] = Math.max(0, Math.min(P.wMax, this.W[s] + r.gauss() * P.jitter)); }
     } else if (this.phase === 'juego' && C.sensory && this.t >= this.nextPulse) {
-      const b = this.ballOnPlate(); this.stimDisk(b.x, b.y, P.ballR); this.stimPaddle();
+      const b = this.ballOnPlate(); this.stimDisk(b.x, b.y, P.ballR); this.stimPaddle(); this.stimStrip(this.advOnPlate());   // pelota, su paleta y la del adversario
       const f = 4 + 36 * Math.min(1, Math.max(0, 1 - this.ball.x));
       this.nextPulse = this.t + Math.round(1000 / f);
     }
@@ -499,13 +506,21 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
   };
   Cultivo.prototype.onHit = function () {
     const C = CONDITIONS[this.condition];
-    this.rally++; this.totalHits++;
+    this.rally++; this.totalHits++; this.lastEvent = 'golpe';
     this.modulate(C.modHit * (1 - this.expect)); this.expect += (1 - this.expect) * P.expectRate;
     if (C.hit === 'predecible') { this.phase = 'predecible'; this.phaseEnd = this.t + P.hitMs; }
   };
+  // gol de las neuronas: el adversario no llegó. Mismo premio que un acierto (estímulo ordenado) y saque nuevo
+  Cultivo.prototype.onGoal = function () {
+    const C = CONDITIONS[this.condition];
+    this.goals++; this.lastEvent = 'gol'; this.rallies.push({ t: this.t, hits: this.rally, gol: true }); this.rally = 0;
+    this.modulate(C.modHit * (1 - this.expect)); this.expect += (1 - this.expect) * P.expectRate;
+    if (C.hit === 'predecible') { this.phase = 'gol'; this.phaseEnd = this.t + P.hitMs; }   // la pelota se detiene mientras llega el premio
+    else this.serve();
+  };
   Cultivo.prototype.onMiss = function () {
     const C = CONDITIONS[this.condition];
-    this.totalMisses++; this.rallies.push({ t: this.t, hits: this.rally }); this.rally = 0;
+    this.totalMisses++; this.lastEvent = 'fallo'; this.rallies.push({ t: this.t, hits: this.rally }); this.rally = 0;
     this.modulate(C.modMiss * (this.expect + P.missFloor)); this.expect += (0 - this.expect) * P.expectRate;
     if (C.miss === 'impredecible' || C.miss === 'silencio') { this.phase = C.miss; this.phaseEnd = this.t + P.missMs; }
     else this.serve();
@@ -518,7 +533,13 @@ button:focus-visible { outline: 2px solid var(--stim); outline-offset: 2px; }
     if (this.phase !== 'juego' && this.phase !== 'predecible') return;
     b.x += b.vx * dt; b.y += b.vy * dt;
     if (b.y < 0) { b.y = -b.y; b.vy = -b.vy; } if (b.y > 1) { b.y = 2 - b.y; b.vy = -b.vy; }
-    if (b.x > 1) { b.x = 2 - b.x; b.vx = -b.vx; }
+    // el adversario sigue a la pelota cuando viene hacia él, con velocidad limitada
+    const want = b.vx > 0 ? b.y : 0.5, dv = Math.max(-P.advSpeed * dt, Math.min(P.advSpeed * dt, want - this.adv));
+    this.adv = Math.max(P.paddleHalf, Math.min(1 - P.paddleHalf, this.adv + dv));
+    if (b.x > 1) {
+      if (Math.abs(b.y - this.adv) <= P.paddleHalf + 0.012) { b.x = 2 - b.x; b.vx = -b.vx; }
+      else { b.x = 1; this.onGoal(); return; }
+    }
     if (b.x <= 0) {
       if (Math.abs(b.y - this.paddle) <= P.paddleHalf + 0.012) {
         const off = (b.y - this.paddle) / P.paddleHalf, ang = off * 0.35 * Math.PI + (this.r() - 0.5) * 0.25;
