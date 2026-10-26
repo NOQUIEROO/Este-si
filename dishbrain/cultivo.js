@@ -77,6 +77,7 @@
     // 5 veces por segundo durante 4 s; al acertar, todos juntos a 100 por segundo durante 0,1 s; las conexiones cambian
     // solo por STDP (lo que dispara junto se refuerza), aplicada cada 100 ms con intensidad stdpRate
     paper: true, stdpRate: 0.05,
+    missStim: 2,             // la descarga al fallar es el doble de fuerte que la del juego (150 mV contra 75 mV en el paper)
     missScale: 1,            // cuánto pesa el castigo de una falla (0: solo se premian los aciertos)     // true: el premio solo cambia las conexiones que llegan a las células motoras
     // aprendizaje
     tauTrace: 6, tauElig: 900, aPlus: 1.0, aMinus: 0.25, lr: 0.6,
@@ -426,7 +427,7 @@
     if (this.phase === 'predecible' || this.phase === 'gol') {
       if (this.t % 10 === 0) for (let k = 0; k < 8; k++) this.stimDisk(c.x0 + (k + 0.5) * (c.x1 - c.x0) / 8, (c.y0 + c.y1) / 2, 40);
     } else if (this.phase === 'impredecible') {
-      if (P.paper) { if (this.t >= this.nextPulse) { this.stimDisk(c.x0 + r() * (c.x1 - c.x0), c.y0 + r() * (c.y1 - c.y0), 6); this.nextPulse = this.t + 200; } }
+      if (P.paper) { if (this.t >= this.nextPulse) { const k = P.stimI; P.stimI = k * P.missStim; this.stimDisk(c.x0 + r() * (c.x1 - c.x0), c.y0 + r() * (c.y1 - c.y0), 6); P.stimI = k; this.nextPulse = this.t + 200; } }
       else if (r() < 0.04) this.stimDisk(c.x0 + r() * (c.x1 - c.x0), c.y0 + r() * (c.y1 - c.y0), 6);
       if (!P.paper && C.jitter && r() < 0.5) { const s = Math.floor(r() * this.S); if (!this.inh[this.pre[s]]) this.W[s] = Math.max(0, Math.min(P.wMax, this.W[s] + r.gauss() * P.jitter)); }
     } else if (this.phase === 'juego' && C.sensory && this.t >= this.nextPulse) {
