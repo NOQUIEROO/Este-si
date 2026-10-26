@@ -117,9 +117,10 @@ button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
       <div class="stat"><span class="label">Golpes/rally</span><b id="sHits">–</b></div>
     </div>
     <div class="key">
-      <span><i style="background:#c9962f"></i>tejido: cuerpos, dendritas y axones fundidos; engorda donde las conexiones son fuertes</span>
-      <span><i style="background:#ffd28a"></i>brillo dentro del tejido = células disparando</span>
-      <span><i style="background:#5fb8d0"></i>celeste difuso = electrodos estimulando</span>
+      <span><i style="background:#8a5a12"></i>tejido: más alto donde es más fuerte</span>
+      <span><i style="background:#7a3df2"></i>violeta = siente (le llega señal)</span>
+      <span><i style="background:#ff7a10"></i>naranja = emite (dispara)</span>
+      <span><i style="background:#40d0ff"></i>celeste en la placa = electrodo estimulando</span>
       <span style="color:#7a3a10"><b>Este cultivo todavía no aprende a jugar.</b></span>
     </div>
   </div>
@@ -355,23 +356,55 @@ const plateMat = new THREE.ShaderMaterial({
       mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(xm))) * inWin);
       mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym + 4.2))) * step(abs(xm), 34.6) * step(0.5, fract(xm / 2.0)));   // línea del medio
       base = mix(base, vec3(0.85, 0.85, 0.8), mark * 0.75);
-      // tejido: la masa se funde (metabola) y se le da relieve con su propia pendiente
-      float f = texture2D(tField, uv).r;
-      float edge = fwidth(f) * 1.5 + 0.02;
-      float tissue = smoothstep(0.45 - edge, 0.45 + edge, f);
-      float core = smoothstep(0.55, 1.0, f);
-      vec2 gr = vec2(dFdx(f), dFdy(f)) / max(fwidth(vec2(xm, ym)).x, 1e-4);
-      float relief = clamp(0.85 + dot(normalize(vec3(gr * 0.25, 1.0)).xy, vec2(-0.5, 0.6)) * 0.6, 0.5, 1.25);
-      vec3 tcol = mix(vec3(0.16, 0.07, 0.004), vec3(0.52, 0.31, 0.05), core) * relief;   // el ocre de tus neuronas de Blender
       vec4 a = texture2D(tAct, uv);
-      vec3 col = mix(base, tcol, tissue);
-      col += vec3(1.0, 0.82, 0.5) * a.r * tissue * 1.6;               // el tejido se enciende por dentro donde disparan
-      col += vec3(0.2, 0.75, 0.9) * a.b * 0.35;                       // estimulación de los electrodos, difusa
+      vec3 col = base + vec3(0.25, 0.85, 1.0) * a.b * 0.9;          // electrodos estimulando: celeste sobre la placa
       gl_FragColor = vec4(col, 1.0);
       #include <tonemapping_fragment>
       #include <colorspace_fragment>
     }`,
 });
+// el tejido en volumen: la superficie sube donde hay más masa (más axones juntos, conexiones más fuertes)
+const TH = 0.45, HMAX = 0.0016;   // umbral del tejido y altura máxima (1,6 mm)
+const tissueMat = new THREE.ShaderMaterial({
+  uniforms: { tField: { value: fieldTex }, tAct: { value: actTex }, area: { value: new THREE.Vector4(PXA, PXB, PYA, PYB) }, th: { value: TH }, hmax: { value: HMAX },
+              light: { value: new THREE.Vector3(-0.5, 0.8, 0.35).normalize() } },
+  vertexShader: `
+    uniform sampler2D tField; uniform vec4 area; uniform float th, hmax;
+    varying vec3 vW; varying vec2 vUv; varying float vF;
+    vec2 uvOf(vec3 w) { float xm = w.x * 1000.0, ym = -w.z * 1000.0; return vec2((ym - area.z) / (area.w - area.z), 1.0 - (xm - area.x) / (area.y - area.x)); }
+    void main(){
+      vec4 w = modelMatrix * vec4(position, 1.0);
+      vUv = uvOf(w.xyz);
+      float f = texture2D(tField, vUv).r; vF = f;
+      w.y += smoothstep(th, 1.0, f) * hmax;          // lo fuerte crece en altura
+      vW = w.xyz;
+      gl_Position = projectionMatrix * viewMatrix * w;
+    }`,
+  fragmentShader: `
+    uniform sampler2D tAct; uniform float th; uniform vec3 light;
+    varying vec3 vW; varying vec2 vUv; varying float vF;
+    void main(){
+      if (vF < th) discard;
+      vec3 n = normalize(cross(dFdx(vW), dFdy(vW))); if (n.y < 0.0) n = -n;
+      float lit = 0.32 + 0.68 * max(dot(n, light), 0.0);
+      float core = smoothstep(th + 0.1, 1.0, vF);
+      vec3 col = mix(vec3(0.16, 0.07, 0.004), vec3(0.52, 0.31, 0.05), core) * lit;
+      vec4 a = texture2D(tAct, vUv);
+      col = mix(col, vec3(0.42, 0.18, 0.95) * (0.6 + 0.6 * lit), clamp(a.g * 1.2, 0.0, 0.85));   // siente: violeta
+      col = mix(col, vec3(1.0, 0.45, 0.05) * (0.8 + 0.5 * lit), clamp(a.r * 1.4, 0.0, 0.95));    // emite: naranja
+      gl_FragColor = vec4(col, 1.0);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`,
+});
+{
+  const wx = (PXB - PXA) / 1000, wz = (PYB - PYA) / 1000;
+  const g = new THREE.PlaneGeometry(wx, wz, Math.round(wx / 0.00025), Math.round(wz / 0.00025));
+  g.rotateX(-Math.PI / 2);
+  const tissue = new THREE.Mesh(g, tissueMat);
+  tissue.position.copy(B((PXA + PXB) / 2000, (PYA + PYB) / 2000, 0.00264));
+  tissue.renderOrder = 1; scene.add(tissue);
+}
 {
   const PZ0 = 0.00123, PZ1 = 0.00262;   // la cara de arriba queda sobre el piso del pozo (0,0025)
   const side = new THREE.MeshStandardMaterial({ color: 0x505050, roughness: 0.5 });
@@ -398,7 +431,7 @@ function sprite(r, g, b) {
   gr.addColorStop(0, `rgba(${r},${g},${b},1)`); gr.addColorStop(0.45, `rgba(${r},${g},${b},0.5)`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
   x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return c;
 }
-const SPR = sprite(255, 255, 255), SPR_ACT = sprite(255, 0, 0), SPR_STIM = sprite(0, 0, 255);
+const SPR = sprite(255, 255, 255), SPR_ACT = sprite(255, 0, 0), SPR_SENSE = sprite(0, 255, 0), SPR_STIM = sprite(0, 0, 255);
 async function sembrar(seed) {
   culView = null;
   cul = new CU({ seed, condition: 'estimulo' });
@@ -472,9 +505,15 @@ function paintActivity() {
   A.globalCompositeOperation = 'source-over'; A.fillStyle = '#000'; A.fillRect(0, 0, actCv.width, actCv.height);
   A.globalCompositeOperation = 'lighter';
   for (let i = 0; i < cul.N; i++) {
-    const since = t - cul.lastSpike[i]; if (since > 90) continue;
-    const f = 1 - since / 90, r = (1.4 + 1.2 * f) * pxmm * k;
-    A.globalAlpha = f; A.drawImage(SPR_ACT, fpx(cul.cy[i]) * k - r, fpy(cul.cx[i]) * k - r, 2 * r, 2 * r);
+    const x = fpx(cul.cy[i]) * k, y = fpy(cul.cx[i]) * k;
+    const since = t - cul.lastSpike[i];
+    if (since <= 90) {                                   // emite: disparó hace menos de 90 ms
+      const f = 1 - since / 90, r = (1.4 + 1.2 * f) * pxmm * k;
+      A.globalAlpha = f; A.drawImage(SPR_ACT, x - r, y - r, 2 * r, 2 * r);
+    } else {                                             // siente: le llega señal y el voltaje sube (sin llegar a disparar)
+      const dep = Math.max(0, Math.min(1, (cul.v[i] + 64) / 14));
+      if (dep > 0.05) { const r = 1.6 * pxmm * k; A.globalAlpha = dep; A.drawImage(SPR_SENSE, x - r, y - r, 2 * r, 2 * r); }
+    }
   }
   const Lg = cul.stimLog;
   for (let q = Math.max(0, Lg.length - 80); q < Lg.length; q += 4) {
