@@ -170,8 +170,9 @@ function loop() {
   }
   setTimeout(loop, 4);
 }
-function sembrar(seed) {
+function sembrar(seed, trained) {
   state = 'growing'; seedNo = seed; lastMin = -1;
+  if (trained && trained.params) for (const k of ['lr', 'tauElig', 'ballR']) if (trained.params[k] != null) P[k] = trained.params[k];
   cul = new CU({ seed, condition: 'estimulo' });
   let lastDay = 0;
   while (!cul.growth.done) {
@@ -179,11 +180,18 @@ function sembrar(seed) {
     const day = Math.ceil(cul.growth.step / P.stepsPerDay);
     if (day !== lastDay) { lastDay = day; postMessage({ type: 'computing', day }); }
   }
+  // lo que aprendió entrenando en Kaggle: las mismas células, con las conexiones como quedaron
+  if (trained && trained.W) {
+    const bin = atob(trained.W), u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const W = new Float32Array(u8.buffer);
+    if (W.length === cul.W.length) cul.W.set(W); else postMessage({ type: 'aviso', msg: 'los pesos entrenados no corresponden a este cultivo' });
+  }
   state = 'replay'; replayStart = performance.now(); lastReplayPaint = -1e9;
 }
 self.onmessage = (e) => {
   const m = e.data;
-  if (m.type === 'seed') sembrar(m.seed);
+  if (m.type === 'seed') sembrar(m.seed, m.trained);
   if (m.type === 'cond') { cond = m.cond; if (cul && state === 'play') cul.setCondition(cond); }
 };
 loop();

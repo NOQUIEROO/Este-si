@@ -166,9 +166,11 @@ async function loadModel() {
 }
 
 bar(0.05);
-const [srcCultivo, srcSim, gltf] = await Promise.all([
+const [srcCultivo, srcSim, gltf, srcTrained] = await Promise.all([
   source('src-cultivo', ['cultivo.js', '../cultivo.js']), source('src-sim', ['sim.js']), loadModel(),
+  source('src-entrenado', ['entrenado.json']).catch(() => null),
 ]);
+const trained = srcTrained ? JSON.parse(srcTrained) : null;   // el cultivo entrenado en Kaggle, si está
 bar(1); $('#bar').hidden = true;
 const root = gltf.scene; scene.add(root);
 const san = (n) => THREE.PropertyBinding.sanitizeNodeName(n);
@@ -344,7 +346,7 @@ function setCond(c) {
   slider.userData.target = sliderBase - k * LED_STEP;
 }
 setCond('estimulo');
-worker.postMessage({ type: 'seed', seed: 1 });
+worker.postMessage({ type: 'seed', seed: trained ? trained.seed : 1, trained });
 drawScore(0, 0); drawLcd([]);
 
 // ---------- cuadro a cuadro: solo dibuja lo que manda el cultivo
