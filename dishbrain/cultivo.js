@@ -71,6 +71,7 @@
     //  'relativa+adv'  lo anterior más la paleta del adversario
     //  'lado'      como DishBrain: siempre junto a la línea de la paleta; el lado dice si la pelota está arriba o abajo de la paleta y la frecuencia, qué tan cerca viene
     stimMode: 'pantalla',
+    bandH: 14,               // alto de la franja de electrodos en modo 'lado' (mm)
     plasticMotor: false,
     missScale: 1,            // cuánto pesa el castigo de una falla (0: solo se premian los aciertos)     // true: el premio solo cambia las conexiones que llegan a las células motoras
     // aprendizaje
@@ -388,13 +389,20 @@
     }
     if (this.stimLog.length < 4000) this.stimLog.push(this.t, p.x, p.y, -p.half);
   };
+  Cultivo.prototype.stimRect = function (q) {
+    const r = this.r;
+    for (let i = 0; i < this.N; i++) if (this.cx[i] >= q[0] && this.cx[i] < q[1] && this.cy[i] >= q[2] && this.cy[i] < q[3] && r() < P.stimP) this.inp[i] += P.stimI;
+    if (this.stimLog.length < 4000) this.stimLog.push(this.t, (q[0] + q[1]) / 2, (q[2] + q[3]) / 2, -1000 - (q[1] - q[0]) / 2);   // franja: radio < -1000
+  };
   Cultivo.prototype.stimPaddle = function () { this.stimStrip(this.paddleOnPlate()); };
   // dónde apuntan los electrodos ahora (según lo que se le muestra al cultivo)
   Cultivo.prototype.targets = function () {
     const m = P.stimMode, c = P.court, b = this.ballOnPlate(), out = [];
     if (m === 'lado') {
-      const rel = Math.max(0, Math.min(1, 0.5 + (this.ball.y - this.paddle)));
-      out.push({ x: c.x0 + rel * (c.x1 - c.x0), y: P.padY - 4, r: P.ballR });
+      // una franja de electrodos junto a la línea de la paleta, de medio ancho de cancha, corrida hacia el lado de la pelota
+      const rel = Math.max(0, Math.min(1, 0.5 + (this.ball.y - this.paddle))), w = (c.x1 - c.x0) / 2;
+      const cx = c.x0 + w / 2 + rel * w;
+      out.push({ rect: [cx - w / 2, cx + w / 2, c.y0, c.y0 + P.bandH] });
     } else if (m === 'relativa' || m === 'relativa+adv') {
       const rel = Math.max(0, Math.min(1, 0.5 + (this.ball.y - this.paddle)));
       out.push({ x: c.x0 + rel * (c.x1 - c.x0), y: b.y, r: P.ballR });
@@ -411,7 +419,7 @@
       if (r() < 0.04) this.stimDisk(c.x0 + r() * (c.x1 - c.x0), c.y0 + r() * (c.y1 - c.y0), 6);
       if (C.jitter && r() < 0.5) { const s = Math.floor(r() * this.S); if (!this.inh[this.pre[s]]) this.W[s] = Math.max(0, Math.min(P.wMax, this.W[s] + r.gauss() * P.jitter)); }
     } else if (this.phase === 'juego' && C.sensory && this.t >= this.nextPulse) {
-      for (const g of this.targets()) { if (g.half != null) this.stimStrip(g); else this.stimDisk(g.x, g.y, g.r); }
+      for (const g of this.targets()) { if (g.rect) this.stimRect(g.rect); else if (g.half != null) this.stimStrip(g); else this.stimDisk(g.x, g.y, g.r); }
       const f = 4 + 36 * Math.min(1, Math.max(0, 1 - this.ball.x));
       this.nextPulse = this.t + Math.round(1000 / f);
     }

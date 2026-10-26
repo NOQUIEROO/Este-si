@@ -52,6 +52,15 @@ function splatStrip(F, w, h, cx, cy, half, r, a) {
   }
 }
 
+// rectángulo de electrodos (borde suave de 1 mm); x de Blender = filas, y = columnas
+function splatRect(F, w, h, q, a) {
+  const e = 1.0 * amm, c0 = apx(q[2]), c1 = apx(q[3]), r0 = apy(q[0]), r1 = apy(q[1]);
+  for (let y = Math.max(0, Math.floor(r0 - e)); y <= Math.min(h - 1, Math.ceil(r1 + e)); y++)
+    for (let x = Math.max(0, Math.floor(c0 - e)); x <= Math.min(w - 1, Math.ceil(c1 + e)); x++) {
+      const dx = Math.max(0, c0 - x, x - c1), dy = Math.max(0, r0 - y, y - r1), d = Math.hypot(dx, dy) / e;
+      if (d < 1) F[y * w + x] += a * (1 - d);
+    }
+}
 // ---------- el tejido: cordones de axón, dendritas, cuerpos y nudos en las conexiones fuertes
 const T = { pLow: 0.6, synQ: 0.99, axA0: 0.06, axA1: 0.2, axW0: 0.08, axW1: 0.12, denA: 0.2, denW: 0.15, blur: 0.25, somR0: 0.5, somR1: 0.9, somA: 0.65, knR0: 0.35, knR1: 0.8, knA: 0.8 };
 const linesCv = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(FW, FH) : null;
@@ -121,7 +130,8 @@ function paintActivity() {
   const C = cul.phase === 'juego' && cond !== 'reposo';
   if (C) {
     for (const g of cul.targets()) {
-      if (g.half != null) splatStrip(B, AW, AH, apx(g.y), apy(g.x), g.half * amm, P.padR * amm, 0.22);
+      if (g.rect) splatRect(B, AW, AH, g.rect, 0.25);
+      else if (g.half != null) splatStrip(B, AW, AH, apx(g.y), apy(g.x), g.half * amm, P.padR * amm, 0.22);
       else splat(B, AW, AH, apx(g.y), apy(g.x), g.r * 1.2 * amm, 0.3);
     }
   }
@@ -130,7 +140,8 @@ function paintActivity() {
   for (let q = Math.max(0, Lg.length - 160); q < Lg.length; q += 4) {
     const age = t - Lg[q]; if (age > 80 || age < 0) continue;
     const f = 1 - age / 80, rad = Lg[q + 3];
-    if (rad >= 0) splat(B, AW, AH, apx(Lg[q + 2]), apy(Lg[q + 1]), rad * 1.2 * amm, f);
+    if (rad <= -1000) { const hw = -(rad + 1000); splatRect(B, AW, AH, [Lg[q + 1] - hw, Lg[q + 1] + hw, Lg[q + 2] - P.bandH / 2, Lg[q + 2] + P.bandH / 2], f * 0.8); }
+    else if (rad >= 0) splat(B, AW, AH, apx(Lg[q + 2]), apy(Lg[q + 1]), rad * 1.2 * amm, f);
     else splatStrip(B, AW, AH, apx(Lg[q + 2]), apy(Lg[q + 1]), -rad * amm, P.padR * amm, f);
   }
   if (Lg.length > 2000) cul.stimLog = Lg.slice(Lg.length - 400);
