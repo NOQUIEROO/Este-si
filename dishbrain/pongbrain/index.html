@@ -81,7 +81,7 @@ button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
 <header class="top">
   <div class="brand">
     <h1>PongBrain</h1>
-    <p>Neuronas sobre una placa de electrodos juegan Pong. La paleta lima la mueven ellas, con los botones SUBE y BAJA.</p>
+    <p>1.200 células caen al azar sobre la placa, crecen y se conectan solas; las que caen bajo SUBE y BAJA mueven la paleta lima. Abrí la pantalla para verlas.</p>
   </div>
   <span class="chip" id="phase" data-phase="juego">jugando</span>
 </header>
@@ -102,9 +102,10 @@ button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
     </div>
     <div class="group" id="speeds">
       <span class="label">Velocidad</span>
-      <button type="button" data-speed="1" aria-pressed="false">1×</button>
-      <button type="button" data-speed="4" aria-pressed="true">4×</button>
-      <button type="button" data-speed="16" aria-pressed="false">16×</button>
+      <button type="button" data-speed="1" aria-pressed="true">1×</button>
+      <button type="button" data-speed="2" aria-pressed="false">2×</button>
+      <button type="button" data-speed="4" aria-pressed="false">4×</button>
+      <button type="button" id="reseed">Sembrar de nuevo</button>
     </div>
     <div class="group" id="views">
       <span class="label">Vista</span>
@@ -116,9 +117,11 @@ button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
       <div class="stat"><span class="label">Golpes/rally</span><b id="sHits">–</b></div>
     </div>
     <div class="key">
-      <span><i style="background:#ffd27a"></i>neurona brillando = está disparando</span>
-      <span><i style="background:#eae0b0"></i>grosor del filamento = fuerza de la conexión (lo calcula el modelo; no se puede medir en un plato real)</span>
-      <span><i style="background:#fff"></i>punto que viaja = señal en camino</span>
+      <span><i style="background:#fff"></i>célula blanca = dispara</span>
+      <span><i style="background:#f2c050"></i>ramas = dendritas · líneas finas = axones</span>
+      <span><i style="background:#e8d79a"></i>punto = sinapsis donde un axón cruza una dendrita (más brillante = más fuerte)</span>
+      <span><i style="background:#6ff3ff"></i>celeste = electrodos estimulando bajo la pelota y la paleta</span>
+      <span style="color:#7a3a10"><b>Este cultivo todavía no aprende a jugar.</b></span>
     </div>
   </div>
 </div>
@@ -135,7 +138,7 @@ button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
     window.addEventListener('error', function (e) {
       if (e.target && e.target !== window) {   // un archivo que no cargó
         var u = e.target.src || e.target.href || '';
-        if (/engine\.js$/.test(u) || /fonts\./.test(u)) return;   // engine.js tiene otra ubicación de respaldo; las fuentes no son imprescindibles
+        if (/cultivo\.js$/.test(u) || /fonts\./.test(u)) return;   // cultivo.js tiene otra ubicación de respaldo; las fuentes no son imprescindibles
         return show('no cargó ' + u);
       }
       show(e.message || 'error desconocido');
@@ -147,8 +150,8 @@ button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
 <script>
   // engine.js vive junto a la página publicada; en el repo, una carpeta más arriba
   (function () {
-    var s = document.createElement('script'); s.src = 'engine.js';
-    s.onerror = function () { var t = document.createElement('script'); t.src = '../engine.js'; document.head.appendChild(t); };
+    var s = document.createElement('script'); s.src = 'cultivo.js';
+    s.onerror = function () { var t = document.createElement('script'); t.src = '../cultivo.js'; document.head.appendChild(t); };
     document.head.appendChild(s);
   })();
 </script>
@@ -166,7 +169,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 
 const $ = (s) => document.querySelector(s);
-const waitEngine = () => new Promise((ok) => { const t = setInterval(() => { if (window.DishBrain) { clearInterval(t); ok(); } }, 30); });
+const waitEngine = () => new Promise((ok) => { const t = setInterval(() => { if (window.Cultivo) { clearInterval(t); ok(); } }, 30); });
 
 // Blender (z arriba) → three (y arriba)
 const B = (x, y, z) => new THREE.Vector3(x, z, -y);
@@ -204,7 +207,7 @@ const floor = new THREE.Mesh(new THREE.PlaneGeometry(3, 3), new THREE.MeshStanda
 floor.rotation.x = -Math.PI / 2; floor.position.y = -0.0178; floor.receiveShadow = true; scene.add(floor);
 // la luz de las neuronas: una lámina en el borde superior, desde la botonera hasta el arco del adversario, mirando hacia abajo
 RectAreaLightUniformsLib.init();
-const sheet = new THREE.RectAreaLight(0xf2ffe8, 24, 0.106, 0.0034);
+const sheet = new THREE.RectAreaLight(0xf2ffe8, 10, 0.106, 0.0034);
 sheet.position.copy(B(W0 + 0.0011, -0.0153, 0.005)); sheet.lookAt(B(1, -0.0153, 0.005)); scene.add(sheet);
 
 function uiInsets() {
@@ -283,7 +286,7 @@ function drawLcd(series) {
 
 // ---------- carga del aparato
 await waitEngine();
-const DB = window.DishBrain; DB.PARAMS.paddleHalf = 0.18;    // el largo de la paleta del diseño
+const CU = window.Cultivo;
 // el modelo viene como glTF con los datos en base64; se arma un GLB en memoria (sin leer direcciones data:)
 async function loadModel(url) {
   const res = await fetch(url);
@@ -322,8 +325,8 @@ get('electrodo bajo la pelota') && (get('electrodo bajo la pelota').visible = fa
   const cols = Math.round((PX1 - PX0) / PITCH), rows = Math.round((PY1 - PY0) / PITCH), cell = 10;
   const cv = document.createElement('canvas'); cv.width = rows * cell; cv.height = cols * cell;   // u sigue a y, v sigue a x
   const g = cv.getContext('2d');
-  g.fillStyle = '#245f10'; g.fillRect(0, 0, cv.width, cv.height);
-  g.fillStyle = '#d6d6d0';
+  g.fillStyle = '#123408'; g.fillRect(0, 0, cv.width, cv.height);
+  g.fillStyle = '#7d8278';
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) g.fillRect(r * cell + 3, c * cell + 3, 4, 4);
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
   const top = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45, metalness: 0.15, bumpMap: tex, bumpScale: 0.6 });
@@ -342,60 +345,80 @@ if (glass) glass.material = new THREE.MeshPhysicalMaterial({ color: 0x1d2025, ro
 const limeMat = new THREE.MeshStandardMaterial({ color: 0x9bd31a, roughness: 0.35 });
 get('paleta neuronas') && get('paleta neuronas').traverse((x) => { if (x.isMesh) x.material = limeMat; });
 
-// neuronas: material propio con brillo que sigue a la actividad
-const neuronBase = new THREE.Color(0.78, 0.6, 0.2);
-const NEU = {};
-for (const [k, n] of Object.entries({ B: 'neurona B (en reposo)', A: 'neurona A (siente)', C: 'neurona C (dispara)', UP: 'neurona motora SUBE (dispara)', DN: 'neurona motora BAJA (en reposo)' })) {
-  const o = get(n); if (!o) continue;
-  const m = new THREE.MeshStandardMaterial({ color: neuronBase, roughness: 0.55, emissive: new THREE.Color(1.0, 0.62, 0.18), emissiveIntensity: 0 });
-  o.traverse((x) => { if (x.isMesh) x.material = m; });
-  const box = new THREE.Box3().setFromObject(o);
-  NEU[k] = { obj: o, mat: m, center: box.getCenter(new THREE.Vector3()), act: 0 };
-}
-// filamentos: tubos sobre la placa; los que unen sensoriales con motoras cambian de grosor con el aprendizaje
-const filData = await (await fetch('filamentos.json')).json();
-const filMat = new THREE.MeshStandardMaterial({ color: neuronBase, roughness: 0.6, emissive: new THREE.Color(1, 0.7, 0.3), emissiveIntensity: 0.05 });
-const toV = (p) => B(p[0], p[1], p[2]);
-const plateY = filData.reduce((a, f) => a + f.pts.reduce((s, p) => s + p[2], 0) / f.pts.length, 0) / filData.length;
-function tubeMesh(points, r, mat) {
-  const curve = new THREE.CatmullRomCurve3(points);
-  const m = new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(24, points.length * 2), r, 6, false), mat);
-  m.castShadow = false; m.receiveShadow = true; m.userData.curve = curve; scene.add(m); return m;
-}
-const PATH_NAMES = { 'conexion B-SUBE (debil)': ['B', 'UP'], 'conexion B-BAJA (debil)': ['B', 'DN'], 'conexion C-SUBE (reforzada)': ['C', 'UP'] };
-const paths = {};
-for (const f of filData) {
-  const pts = f.pts.map(toV);
-  const role = PATH_NAMES[f.name];
-  if (role) { paths[role.join('-')] = { pts, mesh: null, r: 0 }; continue; }
-  const r = f.name.startsWith('brote') ? (f.r[0] + f.r[f.r.length - 1]) / 2 : 0.00011;
-  tubeMesh(pts, r, filMat);
-}
-function wiggle(a, b, seed) {
-  const pts = [], d = new THREE.Vector3().subVectors(b, a), perp = new THREE.Vector3(-d.z, 0, d.x).normalize(), L = d.length();
-  for (let k = 0; k <= 40; k++) {
-    const t = k / 40, off = 0.14 * L * (0.6 * Math.sin(t * 3.1 * Math.PI + seed) + 0.3 * Math.sin(t * 7.3 * Math.PI + seed * 2)) * Math.sin(t * Math.PI);
-    const p = a.clone().addScaledVector(d, t).addScaledVector(perp, off); p.y = plateY; pts.push(p);
+// neuronas: ya no hay manchas puestas a mano; las reemplaza el cultivo simulado
+for (const n of ['neurona B (en reposo)', 'neurona A (siente)', 'neurona C (dispara)', 'neurona motora SUBE (dispara)', 'neurona motora BAJA (en reposo)']) { const o = get(n); if (o) o.visible = false; }
+const MM = 0.001, ZTOP = 0.00236;            // de milímetros del cultivo a metros del aparato; altura de la placa
+const P3 = (x, y, dz) => B(x * MM, y * MM, ZTOP + (dz || 0));
+const cultivoGroup = new THREE.Group(); scene.add(cultivoGroup);
+let cul = null, culView = null;
+// siembra y crecimiento (se calcula en pedazos para no trabar la página; después se reproduce en cámara rápida)
+async function sembrar(seed) {
+  if (culView) { cultivoGroup.clear(); culView = null; }
+  cul = new CU({ seed, condition: 'estimulo' });
+  $('#phase').textContent = 'sembrando y creciendo…';
+  while (!cul.growth.done) {
+    const t0 = performance.now();
+    while (!cul.growth.done && performance.now() - t0 < 12) cul.growStep();   // un poco por cuadro, sin trabar la imagen
+    $('#phase').textContent = 'creciendo · día ' + Math.min(21, Math.ceil(cul.growth.step / CU.PARAMS.stepsPerDay)) + ' de 21 (calculando)';
+    await new Promise((r) => requestAnimationFrame(r));
   }
-  return pts;
+  buildCultivoView();
 }
-for (const [g, m, s] of [['A', 'UP', 1.3], ['A', 'DN', 2.1], ['C', 'DN', 0.7]]) {
-  if (NEU[g] && NEU[m]) paths[g + '-' + m] = { pts: wiggle(NEU[g].center, NEU[m].center, s), mesh: null, r: 0 };
+function lineGeo(src, pick) {
+  const n = src.x0.length, pos = new Float32Array(n * 6), col = new Float32Array(n * 6);
+  for (let k = 0; k < n; k++) {
+    const a = P3(src.x0[k], src.y0[k], pick.z), b = P3(src.x1[k], src.y1[k], pick.z);
+    pos.set([a.x, a.y, a.z, b.x, b.y, b.z], k * 6);
+    const c = pick.color(k); col.set([c[0], c[1], c[2], c[0], c[1], c[2]], k * 6);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
 }
-const pathMat = new THREE.MeshStandardMaterial({ color: neuronBase, roughness: 0.5, emissive: new THREE.Color(1, 0.65, 0.25), emissiveIntensity: 0.25 });
-function setPathRadius(key, r) {
-  const p = paths[key]; if (!p) return;
-  if (p.mesh && Math.abs(p.r - r) / r < 0.04) return;
-  if (p.mesh) { scene.remove(p.mesh); p.mesh.geometry.dispose(); }
-  p.mesh = tubeMesh(p.pts, r, pathMat); p.r = r;
+function buildCultivoView() {
+  const N = cul.N, sy = cul.syn;
+  // axones: líneas finas
+  const ax = new THREE.LineSegments(lineGeo(cul.seg, { z: 0.00002, color: (k) => cul.inh[cul.seg.cell[k]] ? [0.4, 0.6, 1] : [0.85, 0.75, 0.45] }),
+    new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.22, depthWrite: false }));
+  // dendritas: ramas cortas, más visibles
+  const de = new THREE.LineSegments(lineGeo(cul.den, { z: 0.00004, color: (k) => cul.inh[cul.den.cell[k]] ? [0.5, 0.7, 1] : [0.95, 0.8, 0.42] }),
+    new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.75, depthWrite: false }));
+  // sinapsis: un punto donde un axón cruza una dendrita; brillo = fuerza
+  const sp = new Float32Array(cul.S * 3), sc = new Float32Array(cul.S * 3);
+  for (let s = 0; s < cul.S; s++) { const v = P3(sy.x[s], sy.y[s], 0.00006); sp.set([v.x, v.y, v.z], s * 3); }
+  const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(sp, 3)); sg.setAttribute('color', new THREE.BufferAttribute(sc, 3));
+  const syn = new THREE.Points(sg, new THREE.PointsMaterial({ size: 2, sizeAttenuation: false, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  // cuerpos de las células
+  const soma = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 12, 8), new THREE.MeshBasicMaterial({ toneMapped: false }), N);
+  const m4 = new THREE.Matrix4();
+  for (let i = 0; i < N; i++) {
+    const r = cul.size[i] * MM, p = P3(cul.cx[i], cul.cy[i], 0.00008);
+    m4.compose(p, new THREE.Quaternion(), new THREE.Vector3(r, r * 0.45, r)); soma.setMatrixAt(i, m4);
+    soma.setColorAt(i, new THREE.Color(0, 0, 0));
+  }
+  // estimulación: anillo bajo la pelota y franja bajo la paleta
+  const stimMat = new THREE.MeshBasicMaterial({ color: 0x6ff3ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false });
+  const ringBall = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 48), stimMat); ringBall.rotation.x = -Math.PI / 2;
+  const stripMat = stimMat.clone(); const strip = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), stripMat); strip.rotation.x = -Math.PI / 2;
+  for (const o of [ax, de, syn, soma, ringBall, strip]) { o.renderOrder = 2; cultivoGroup.add(o); }
+  culView = { ax, de, syn, soma, ringBall, strip, stimMat, stripMat, replay: 0, lastSyn: -1e9 };
+  paintSynapses();
 }
-// señales que viajan
-const sigGeo = new THREE.SphereGeometry(0.00055, 10, 8);
-const sigMat = new THREE.MeshBasicMaterial({ color: 0xfff6d8 });
-const signals = [];
-function spawnSignal(key) {
-  const p = paths[key]; if (!p || !p.mesh || signals.length > 60) return;
-  const m = new THREE.Mesh(sigGeo, sigMat); scene.add(m); signals.push({ m, curve: p.mesh.userData.curve, t: 0 });
+function paintSynapses() {
+  const c = culView.syn.geometry.attributes.color, Pm = CU.PARAMS;
+  for (let s = 0; s < cul.S; s++) {
+    const inh = cul.inh[cul.pre[s]], w = inh ? 0.3 : cul.W[s] / Pm.wMax;
+    const b = 0.05 + 0.9 * Math.pow(w, 1.4);
+    c.setXYZ(s, b, b * (inh ? 1 : 0.85), b * (inh ? 1.2 : 0.5));
+  }
+  c.needsUpdate = true;
+}
+// repetición del crecimiento en cámara rápida: muestra solo lo que ya había crecido en cada "hora"
+function showGrowthUpTo(step) {
+  const upto = (arr) => { let lo = 0, hi = arr.length; while (lo < hi) { const m = (lo + hi) >> 1; if (arr[m] <= step) lo = m + 1; else hi = m; } return lo; };
+  culView.ax.geometry.setDrawRange(0, upto(cul.seg.born) * 2);
+  culView.de.geometry.setDrawRange(0, upto(cul.den.born) * 2);
+  culView.syn.geometry.setDrawRange(0, upto(cul.syn.born));
 }
 
 // juego: piezas sobre la pantalla (se mueven en coordenadas de la pantalla)
@@ -425,39 +448,15 @@ const scoreMesh = get('puntaje'), lcdMesh = get('evolucion');
 if (scoreMesh) scoreMesh.traverse((x) => { if (x.isMesh) x.material = new THREE.MeshBasicMaterial({ map: dotTex, toneMapped: false }); });
 if (lcdMesh) lcdMesh.traverse((x) => { if (x.isMesh) x.material = new THREE.MeshBasicMaterial({ map: lcdTex, toneMapped: false }); });
 
-// ---------- simulación
+// ---------- simulación: el cultivo juega
 const COND_ORDER = ['estimulo', 'silencio', 'sinfeedback', 'reposo'];
-let sim = new DB({ seed: 202, condition: 'estimulo' });
-let speed = 4, acc = 0, last = performance.now();
+let cond = 'estimulo';
+let speed = 1, acc = 0, last = performance.now();
 let lidOpen = false, modOpen = false, lidX = 0, modY = 0;
-const PE = DB.PARAMS.perElec, NE = DB.PARAMS.nElec;
-const groupOfElec = (e) => (e <= 2 ? 'B' : e <= 4 ? 'A' : 'C');
-const prevStim = new Float64Array(NE).fill(-1e9);
 let rateMaxU = 8, rateMaxD = 8, advX = 0.5;
-
-function pathWeights() {
-  const NS = sim.NS, NM = sim.NM, W = sim.W, out = {};
-  for (const g of ['A', 'B', 'C']) {
-    const bins = g === 'B' ? [0, 1, 2] : g === 'A' ? [3, 4] : [5, 6, 7];
-    let su = 0, nu = 0, sd = 0, nd = 0;
-    for (const e of bins) for (let k = 0; k < PE; k++) {
-      const o = (e * PE + k) * NM;
-      for (let j = 0; j < NM; j++) { if (sim.isUp[j]) { su += W[o + j]; nu++; } else { sd += W[o + j]; nd++; } }
-    }
-    out[g + '-UP'] = su / nu; out[g + '-DN'] = sd / nd;
-  }
-  return out;
-}
-let lastPathUpdate = 0;
-function updatePaths(now) {
-  if (now - lastPathUpdate < 300) return; lastPathUpdate = now;
-  const w = pathWeights(), w0 = (DB.PARAMS.wInit[0] + DB.PARAMS.wInit[1]) / 2;
-  for (const [k, v] of Object.entries(w)) setPathRadius(k, 0.00003 + 0.00011 * Math.pow(Math.max(0, v) / w0, 1.4));
-  paths.weights = w;
-}
-
+const GROW_REPLAY_MS = 9000;     // 21 días en 9 segundos
 function setCond(c) {
-  sim.setCondition(c);
+  cond = c; if (cul && cul.growth.done) cul.setCondition(c);
   document.querySelectorAll('#conds button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cond === c)));
   const k = COND_ORDER.indexOf(c);
   leds.forEach((m, i) => { if (m) { m.emissive = new THREE.Color(0.62, 0.95, 0.15); m.emissiveIntensity = i === k ? 3 : 0; m.color = new THREE.Color(i === k ? 0x9bd31a : 0x1a1a1a); } });
@@ -470,81 +469,83 @@ document.querySelectorAll('#speeds button').forEach((b) => b.addEventListener('c
 document.querySelectorAll('#views button').forEach((b) => b.addEventListener('click', () => { if (b.dataset.view === 'top') fitTop(); setView(b.dataset.view); }));
 $('#openLid').addEventListener('click', () => { lidOpen = !lidOpen; $('#openLid').setAttribute('aria-pressed', String(lidOpen)); });
 $('#openMod').addEventListener('click', () => { modOpen = !modOpen; $('#openMod').setAttribute('aria-pressed', String(modOpen)); });
+$('#reseed') && $('#reseed').addEventListener('click', () => sembrar(1 + Math.floor(Math.random() * 1e6)));
 setCond('estimulo');
 fitTop(); setView('top', true);
 
-const PHASE = { juego: 'jugando', predecible: 'acierto · estímulo predecible', impredecible: 'fallo · estímulo impredecible 4 s', silencio: 'fallo · silencio 4 s' };
+const PHASE = { juego: 'jugando', predecible: 'acierto · estímulo ordenado', impredecible: 'fallo · ruido 4 s', silencio: 'fallo · silencio 4 s' };
 let lastHud = 0, lastLcdMin = -1;
+const white = new THREE.Color(1, 1, 1), cE = new THREE.Color(0.95, 0.72, 0.25), cI = new THREE.Color(0.4, 0.62, 1), tmpC = new THREE.Color();
 
 function frame(now) {
   const dt = Math.min(100, now - last); last = now;
-  // simular
-  acc += dt * speed; const n = Math.floor(acc); acc -= n;
-  const cnt = { A: 0, B: 0, C: 0, UP: 0, DN: 0 };
-  for (let k = 0; k < n; k++) {
-    sim.step();
-    for (let e = 0; e < NE; e++) if (sim.lastStim[e] > prevStim[e]) {
-      prevStim[e] = sim.lastStim[e];
-      if (sim.phase === 'juego' && Math.random() < 0.35) {
-        const g = groupOfElec(e), w = paths.weights || {};
-        for (const m of ['UP', 'DN']) if (Math.random() < Math.min(1, (w[g + '-' + m] || 1.7) / 3)) spawnSignal(g + '-' + m);
+  const ready = culView && cul.growth.done;
+  if (ready && culView.replay < GROW_REPLAY_MS) {
+    // cámara rápida del crecimiento ya calculado
+    culView.replay += dt;
+    const step = Math.floor(cul.growth.total * Math.min(1, culView.replay / GROW_REPLAY_MS));
+    showGrowthUpTo(step);
+    $('#phase').textContent = culView.replay < GROW_REPLAY_MS ? 'creciendo · día ' + Math.max(1, Math.ceil(step / CU.PARAMS.stepsPerDay)) + ' de 21' : 'red formada · empieza el juego';
+    if (culView.replay >= GROW_REPLAY_MS) cul.setCondition(cond);
+    for (let i = 0; i < cul.N; i++) culView.soma.setColorAt(i, cul.inh[i] ? cI : cE);
+    culView.soma.instanceColor.needsUpdate = true;
+  } else if (ready) {
+    acc += dt * speed; let n = Math.floor(acc); acc -= n;
+    const t0 = performance.now();
+    while (n-- > 0) { cul.step(); if (performance.now() - t0 > 22) { acc = 0; break; } }
+    cul.spikeLog = [];
+    // células: blancas cuando disparan
+    const t = cul.t;
+    for (let i = 0; i < cul.N; i++) {
+      const since = t - cul.lastSpike[i], f = since < 60 ? 1 - since / 60 : 0;
+      tmpC.copy(cul.inh[i] ? cI : cE).lerp(white, f).multiplyScalar(1 + 2.5 * f);
+      culView.soma.setColorAt(i, tmpC);
+    }
+    culView.soma.instanceColor.needsUpdate = true;
+    // estimulación de los últimos 40 ms
+    let ballStim = 0, padStim = 0; const L = cul.stimLog;
+    for (let k = Math.max(0, L.length - 80); k < L.length; k += 4) {
+      const age = t - L[k]; if (age > 40) continue;
+      if (L[k + 3] >= 0) { ballStim = Math.max(ballStim, 1 - age / 40); const p = P3(L[k + 1], L[k + 2], 0.0001); culView.ringBall.position.copy(p); culView.ringBall.scale.setScalar(L[k + 3] * MM); }
+      else { padStim = Math.max(padStim, 1 - age / 40); const half = -L[k + 3]; const p = P3(L[k + 1], L[k + 2], 0.0001); culView.strip.position.copy(p); culView.strip.scale.set(2 * half * MM, 2 * CU.PARAMS.padR * MM, 1); culView.strip.rotation.set(-Math.PI / 2, 0, 0); }
+    }
+    if (L.length > 2000) cul.stimLog = L.slice(L.length - 400);
+    culView.stimMat.opacity = 0.9 * ballStim; culView.stripMat.opacity = 0.35 * padStim;
+    if (now - culView.lastSyn > 2500) { culView.lastSyn = now; paintSynapses(); }
+    // juego → piezas
+    const by = cul.ball.y, bx = cul.ball.x;
+    const yp = Y_PAD + PAD_T + BALL_R, ya = Y_ADV - PAD_T - BALL_R;
+    placeAt(ball, W0 + BALL_R + by * (W1 - W0 - 2 * BALL_R), yp + bx * (ya - yp));
+    ball.o.visible = cul.phase === 'juego' || cul.phase === 'predecible';
+    placeAt(padN, W0 + cul.paddle * (W1 - W0), Y_PAD);
+    advX += Math.max(-0.02, Math.min(0.02, by - advX)) * Math.min(1, dt * speed / 16);
+    advX = Math.min(1 - 0.18, Math.max(0.18, advX));
+    placeAt(padA, W0 + advX * (W1 - W0), Y_ADV);
+    // botones SUBE / BAJA: las células que cayeron sobre esas zonas
+    rateMaxU = Math.max(rateMaxU * 0.999, cul.rateUp); rateMaxD = Math.max(rateMaxD * 0.999, cul.rateDown);
+    const pu = Math.min(1, cul.rateUp / rateMaxU), pd = Math.min(1, cul.rateDown / rateMaxD);
+    keys.UP.position.y = keyBase.UP - 0.0008 * pu; keys.DN.position.y = keyBase.DN - 0.0008 * pd;
+    if (rings.UP) rings.UP.emissiveIntensity = 4 * pu; if (rings.DN) rings.DN.emissiveIntensity = 4 * pd;
+    if (now - lastHud > 250) {
+      lastHud = now;
+      const m = Math.floor(t / 60000);
+      $('#sTime').textContent = m + ':' + String(Math.floor(t / 1000) % 60).padStart(2, '0');
+      const st = cul.summary(t - 120000, t + 1);
+      $('#sHits').textContent = st.n ? st.hitsPerRally.toFixed(2) : '–';
+      const chip = $('#phase'); if (chip.dataset.phase !== cul.phase) { chip.dataset.phase = cul.phase; chip.textContent = PHASE[cul.phase]; }
+      drawScore(cul.totalHits, cul.totalMisses);
+      if (m !== lastLcdMin) {
+        lastLcdMin = m; const series = [];
+        for (let k = 0; k < m; k++) { const s2 = cul.summary(k * 60000, (k + 1) * 60000); series.push(s2.n ? s2.hitsPerRally : 0); }
+        drawLcd(series);
       }
     }
-  }
-  const log = sim.spikeLog;
-  for (let k = 1; k < log.length; k += 2) {
-    const i = log[k];
-    if (i < sim.NS) cnt[groupOfElec(Math.floor(i / PE))]++;
-    else cnt[sim.isUp[i - sim.NS] ? 'UP' : 'DN']++;
-  }
-  sim.spikeLog = [];
-  const decay = Math.exp(-dt / 140);
-  for (const [k, v] of Object.entries(NEU)) {
-    const size = k === 'UP' || k === 'DN' ? 40 : k === 'A' ? 24 : 36;
-    v.act = v.act * decay + cnt[k] / size * 6;
-    v.mat.emissiveIntensity = Math.min(1.6, v.act * 0.9);
-  }
-  // juego → piezas
-  const by = sim.ball.y, bx = sim.ball.x;
-  const yp = Y_PAD + PAD_T + BALL_R, ya = Y_ADV - PAD_T - BALL_R;
-  placeAt(ball, W0 + BALL_R + by * (W1 - W0 - 2 * BALL_R), yp + bx * (ya - yp));
-  ball.o.visible = sim.phase === 'juego' || sim.phase === 'predecible';
-  placeAt(padN, W0 + sim.paddle * (W1 - W0), Y_PAD);
-  advX += Math.max(-0.02, Math.min(0.02, by - advX)) * Math.min(1, dt * speed / 16);
-  advX = Math.min(1 - 0.18, Math.max(0.18, advX));
-  placeAt(padA, W0 + advX * (W1 - W0), Y_ADV);
-  // botones SUBE / BAJA siguen a las regiones motoras
-  rateMaxU = Math.max(rateMaxU * 0.999, sim.rateUp); rateMaxD = Math.max(rateMaxD * 0.999, sim.rateDown);
-  const pu = Math.min(1, sim.rateUp / rateMaxU), pd = Math.min(1, sim.rateDown / rateMaxD);
-  keys.UP.position.y = keyBase.UP - 0.0008 * pu; keys.DN.position.y = keyBase.DN - 0.0008 * pd;
-  if (rings.UP) rings.UP.emissiveIntensity = 4 * pu; if (rings.DN) rings.DN.emissiveIntensity = 4 * pd;
-  // señales
-  for (let i = signals.length - 1; i >= 0; i--) {
-    const s = signals[i]; s.t += dt / 380;
-    if (s.t >= 1) { scene.remove(s.m); signals.splice(i, 1); continue; }
-    s.m.position.copy(s.curve.getPointAt(s.t)); s.m.position.y += 0.0002;
   }
   // deslizamientos (sin rotar: solo se trasladan)
   lidX += ((lidOpen ? -LID_TRAVEL : 0) - lidX) * Math.min(1, dt / 160);
   modY += ((modOpen ? -MOD_TRAVEL : 0) - modY) * Math.min(1, dt / 160);
   lid.position.x = lidBase.x + lidX; mod.position.z = modBase.z - modY;
   if (slider.userData.target !== undefined) slider.position.z += (slider.userData.target - slider.position.z) * Math.min(1, dt / 120);
-  updatePaths(now);
-  // tablero
-  if (now - lastHud > 250) {
-    lastHud = now;
-    const t = sim.t, m = Math.floor(t / 60000);
-    $('#sTime').textContent = m + ':' + String(Math.floor(t / 1000) % 60).padStart(2, '0');
-    const st = sim.summary(t - 120000, t + 1);
-    $('#sHits').textContent = st.n ? st.hitsPerRally.toFixed(1) : '–';
-    const chip = $('#phase'); if (chip.dataset.phase !== sim.phase) { chip.dataset.phase = sim.phase; chip.textContent = PHASE[sim.phase]; }
-    drawScore(sim.totalHits, sim.totalMisses);
-    if (m !== lastLcdMin) {
-      lastLcdMin = m; const series = [];
-      for (let k = 0; k < m; k++) { const s = sim.summary(k * 60000, (k + 1) * 60000); series.push(s.n ? s.hitsPerRally : 0); }
-      drawLcd(series);
-    }
-  }
   if (viewAnim) {
     viewAnim.t = Math.min(1, viewAnim.t + dt / 700); const e = 1 - Math.pow(1 - viewAnim.t, 3);
     camera.position.lerpVectors(viewAnim.from.pos, viewAnim.to.pos, e); camera.up.lerpVectors(viewAnim.from.up, viewAnim.to.up, e).normalize();
@@ -556,6 +557,8 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 window.__started = true;
-drawScore(0, 0); drawLcd([]); updatePaths(0);
+drawScore(0, 0); drawLcd([]);
+$('#phase').textContent = 'sembrando…';
 requestAnimationFrame(frame);
+sembrar(1);
 </script>
