@@ -398,7 +398,11 @@
   // dónde apuntan los electrodos ahora (según lo que se le muestra al cultivo)
   Cultivo.prototype.targets = function () {
     const m = P.stimMode, c = P.court, b = this.ballOnPlate(), out = [];
-    if (m === 'lado') {
+    if (m === 'sombra') {
+      // la franja de electrodos junto a la línea de la paleta, a la altura exacta de la pelota (su sombra)
+      const w = (c.x1 - c.x0) / 2, cx = c.x0 + this.ball.y * (c.x1 - c.x0);
+      out.push({ rect: [Math.max(c.x0, cx - w / 2), Math.min(c.x1, cx + w / 2), c.y0, c.y0 + P.bandH] });
+    } else if (m === 'lado') {
       // una franja de electrodos junto a la línea de la paleta, de medio ancho de cancha, corrida hacia el lado de la pelota
       const rel = Math.max(0, Math.min(1, 0.5 + (this.ball.y - this.paddle))), w = (c.x1 - c.x0) / 2;
       const cx = c.x0 + w / 2 + rel * w;
