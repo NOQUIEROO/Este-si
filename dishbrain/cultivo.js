@@ -368,7 +368,9 @@
   // de coordenadas del juego a la placa (el espejo)
   Cultivo.prototype.ballOnPlate = function () {
     const c = P.court;
-    return { x: c.x0 + this.ball.y * (c.x1 - c.x0), y: P.padY + this.ball.x * (P.advY - P.padY) };
+    // igual que en la pantalla: el centro de la pelota va de borde a borde menos su radio, y entre las caras de las paletas
+    const br = 2.6, pt = 2.4;
+    return { x: c.x0 + br + this.ball.y * (c.x1 - c.x0 - 2 * br), y: P.padY + pt + br + this.ball.x * (P.advY - P.padY - 2 * (pt + br)) };
   };
   Cultivo.prototype.paddleOnPlate = function () {
     const c = P.court; return { x: c.x0 + this.paddle * (c.x1 - c.x0), y: P.padY, half: P.paddleHalf * (c.x1 - c.x0) };
