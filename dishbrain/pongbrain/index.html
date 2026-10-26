@@ -117,10 +117,9 @@ button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
       <div class="stat"><span class="label">Golpes/rally</span><b id="sHits">–</b></div>
     </div>
     <div class="key">
-      <span><i style="background:#fff"></i>célula blanca = dispara</span>
-      <span><i style="background:#f2c050"></i>ramas = dendritas · líneas finas = axones</span>
-      <span><i style="background:#e8d79a"></i>punto = sinapsis donde un axón cruza una dendrita (más brillante = más fuerte)</span>
-      <span><i style="background:#6ff3ff"></i>celeste = electrodos estimulando bajo la pelota y la paleta</span>
+      <span><i style="background:#c9962f"></i>tejido: cuerpos, dendritas y axones fundidos; engorda donde las conexiones son fuertes</span>
+      <span><i style="background:#ffd28a"></i>brillo dentro del tejido = células disparando</span>
+      <span><i style="background:#5fb8d0"></i>celeste difuso = electrodos estimulando</span>
       <span style="color:#7a3a10"><b>Este cultivo todavía no aprende a jugar.</b></span>
     </div>
   </div>
@@ -320,24 +319,54 @@ const san = (n) => THREE.PropertyBinding.sanitizeNodeName(n);
 const get = (n) => root.getObjectByName(san(n));
 root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
 get('electrodo bajo la pelota') && (get('electrodo bajo la pelota').visible = false);
+// ---------- placa: tu silicio verde con electrodos grises, y el tejido del cultivo creciendo encima
+const PXA = -34.6, PXB = 34.6, PYA = -69.0, PYB = 37.9;          // placa en mm (como el cultivo)
+const FW = 1100, FH = Math.round(FW * (PXB - PXA) / (PYB - PYA));  // lienzo del tejido: 10 px por mm
+const pxmm = FW / (PYB - PYA);
+const fpx = (y) => (y - PYA) * pxmm, fpy = (x) => (x - PXA) * pxmm;
+const fieldCv = document.createElement('canvas'); fieldCv.width = FW; fieldCv.height = FH;
+const linesCv = document.createElement('canvas'); linesCv.width = FW; linesCv.height = FH;
+const actCv = document.createElement('canvas'); actCv.width = Math.round(FW / 2); actCv.height = Math.round(FH / 2);
+const fieldTex = new THREE.CanvasTexture(fieldCv), actTex = new THREE.CanvasTexture(actCv);
+fieldTex.generateMipmaps = false; fieldTex.minFilter = THREE.LinearFilter;
+actTex.generateMipmaps = false; actTex.minFilter = THREE.LinearFilter;
+const plateMat = new THREE.ShaderMaterial({
+  uniforms: { tField: { value: fieldTex }, tAct: { value: actTex }, area: { value: new THREE.Vector4(PXA, PXB, PYA, PYB) } },
+  vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+  fragmentShader: `
+    uniform sampler2D tField, tAct; uniform vec4 area; varying vec3 vW;
+    void main(){
+      float xm = vW.x * 1000.0, ym = -vW.z * 1000.0;                  // mm sobre la placa
+      vec2 uv = vec2((ym - area.z) / (area.w - area.z), 1.0 - (xm - area.x) / (area.y - area.x));
+      // grilla de electrodos: cuadrados de 0,3 mm cada 0,78 mm (como en tu Blender)
+      vec2 g = fract(vec2(xm, ym) / 0.78);
+      vec2 aa = fwidth(vec2(xm, ym) / 0.78) * 0.8;
+      float e = (smoothstep(0.0, aa.x, g.x) - smoothstep(0.385, 0.385 + aa.x, g.x)) * (smoothstep(0.0, aa.y, g.y) - smoothstep(0.385, 0.385 + aa.y, g.y));
+      vec3 base = mix(vec3(0.02, 0.121, 0.003), vec3(0.314), clamp(e, 0.0, 1.0)) * 0.9;
+      // tejido: la masa se funde (metabola) y se le da relieve con su propia pendiente
+      float f = texture2D(tField, uv).r;
+      float edge = fwidth(f) * 1.5 + 0.02;
+      float tissue = smoothstep(0.30 - edge, 0.30 + edge, f);
+      float core = smoothstep(0.45, 1.0, f);
+      vec2 gr = vec2(dFdx(f), dFdy(f)) / max(fwidth(vec2(xm, ym)).x, 1e-4);
+      float relief = clamp(0.85 + dot(normalize(vec3(gr * 0.25, 1.0)).xy, vec2(-0.5, 0.6)) * 0.6, 0.5, 1.25);
+      vec3 tcol = mix(vec3(0.45, 0.30, 0.06), vec3(0.92, 0.70, 0.28), core) * relief;
+      vec4 a = texture2D(tAct, uv);
+      vec3 col = mix(base, tcol, tissue);
+      col += vec3(1.0, 0.82, 0.5) * a.r * tissue * 1.6;               // el tejido se enciende por dentro donde disparan
+      col += vec3(0.2, 0.75, 0.9) * a.b * 0.35;                       // estimulación de los electrodos, difusa
+      gl_FragColor = vec4(col, 1.0);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`,
+});
 {
-  const PX0 = -0.0346, PX1 = 0.0346, PY0 = -0.069, PY1 = 0.0379, PZ0 = 0.00123, PZ1 = 0.00235, PITCH = 0.00078;
-  const cols = Math.round((PX1 - PX0) / PITCH), rows = Math.round((PY1 - PY0) / PITCH), cell = 10;
-  const cv = document.createElement('canvas'); cv.width = rows * cell; cv.height = cols * cell;   // u sigue a y, v sigue a x
-  const g = cv.getContext('2d');
-  g.fillStyle = '#123408'; g.fillRect(0, 0, cv.width, cv.height);
-  g.fillStyle = '#7d8278';
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) g.fillRect(r * cell + 3, c * cell + 3, 4, 4);
-  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
-  const top = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45, metalness: 0.15, bumpMap: tex, bumpScale: 0.6 });
+  const PZ0 = 0.00123, PZ1 = 0.00262;   // la cara de arriba queda sobre el piso del pozo (0,0025)
   const side = new THREE.MeshStandardMaterial({ color: 0x505050, roughness: 0.5 });
-  // caja en coordenadas de three: x = x de Blender, y = z, z = −y
-  const geo = new THREE.BoxGeometry(PX1 - PX0, PZ1 - PZ0, PY1 - PY0);
-  const plate = new THREE.Mesh(geo, [side, side, top, side, side, side]);
-  plate.position.copy(B((PX0 + PX1) / 2, (PY0 + PY1) / 2, (PZ0 + PZ1) / 2));
+  const geo = new THREE.BoxGeometry((PXB - PXA) / 1000, PZ1 - PZ0, (PYB - PYA) / 1000);
+  const plate = new THREE.Mesh(geo, [side, side, plateMat, side, side, side]);
+  plate.position.copy(B((PXA + PXB) / 2000, (PYA + PYB) / 2000, (PZ0 + PZ1) / 2));
   plate.receiveShadow = true; scene.add(plate);
-  // la cara de arriba de BoxGeometry tiene u a lo largo de x y v a lo largo de z: rotar la textura 90° para que la grilla calce
-  tex.center.set(0.5, 0.5); tex.rotation = Math.PI / 2;
 }
 // vidrio ahumado de la pantalla
 const glass = get('tapa vidrio');
@@ -347,78 +376,99 @@ get('paleta neuronas') && get('paleta neuronas').traverse((x) => { if (x.isMesh)
 
 // neuronas: ya no hay manchas puestas a mano; las reemplaza el cultivo simulado
 for (const n of ['neurona B (en reposo)', 'neurona A (siente)', 'neurona C (dispara)', 'neurona motora SUBE (dispara)', 'neurona motora BAJA (en reposo)']) { const o = get(n); if (o) o.visible = false; }
-const MM = 0.001, ZTOP = 0.00236;            // de milímetros del cultivo a metros del aparato; altura de la placa
+const MM = 0.001, ZTOP = 0.00263;            // de milímetros del cultivo a metros del aparato; altura de la placa
 const P3 = (x, y, dz) => B(x * MM, y * MM, ZTOP + (dz || 0));
-const cultivoGroup = new THREE.Group(); scene.add(cultivoGroup);
 let cul = null, culView = null;
-// siembra y crecimiento (se calcula en pedazos para no trabar la página; después se reproduce en cámara rápida)
+// manchas suaves (gaussianas) para sumar masa; nada de círculos con borde: el borde lo decide el umbral del tejido
+function sprite(r, g, b) {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+  const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, `rgba(${r},${g},${b},1)`); gr.addColorStop(0.45, `rgba(${r},${g},${b},0.5)`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return c;
+}
+const SPR = sprite(255, 255, 255), SPR_ACT = sprite(255, 0, 0), SPR_STIM = sprite(0, 0, 255);
 async function sembrar(seed) {
-  if (culView) { cultivoGroup.clear(); culView = null; }
+  culView = null;
   cul = new CU({ seed, condition: 'estimulo' });
-  $('#phase').textContent = 'sembrando y creciendo…';
+  $('#phase').textContent = 'sembrando…';
   while (!cul.growth.done) {
     const t0 = performance.now();
     while (!cul.growth.done && performance.now() - t0 < 12) cul.growStep();   // un poco por cuadro, sin trabar la imagen
     $('#phase').textContent = 'creciendo · día ' + Math.min(21, Math.ceil(cul.growth.step / CU.PARAMS.stepsPerDay)) + ' de 21 (calculando)';
     await new Promise((r) => requestAnimationFrame(r));
   }
-  buildCultivoView();
+  // qué tramo de axón formó cada sinapsis no hace falta: la fuerza de un axón es la de las conexiones que hizo
+  culView = { replay: 0, lastField: -1e9, cellStrength: new Float32Array(cul.N) };
+  paintTissue(0);
 }
-function lineGeo(src, pick) {
-  const n = src.x0.length, pos = new Float32Array(n * 6), col = new Float32Array(n * 6);
-  for (let k = 0; k < n; k++) {
-    const a = P3(src.x0[k], src.y0[k], pick.z), b = P3(src.x1[k], src.y1[k], pick.z);
-    pos.set([a.x, a.y, a.z, b.x, b.y, b.z], k * 6);
-    const c = pick.color(k); col.set([c[0], c[1], c[2], c[0], c[1], c[2]], k * 6);
+// fuerza de cada célula = cuánto pesan, en promedio, las conexiones que hizo su axón
+function cellStrengths() {
+  const st = culView.cellStrength, cnt = new Float32Array(cul.N), Pm = CU.PARAMS; st.fill(0);
+  if (cul.W) for (let s = 0; s < cul.S; s++) { const i = cul.pre[s]; if (cul.inh[i]) continue; st[i] += cul.W[s] / Pm.wMax; cnt[i]++; }
+  else for (let s = 0; s < cul.syn.pre.length; s++) { const i = cul.syn.pre[s]; st[i] += cul.syn.w[s] / Pm.wMax; cnt[i]++; }
+  for (let i = 0; i < cul.N; i++) st[i] = cul.inh[i] ? 0.25 : (cnt[i] ? st[i] / cnt[i] : 0);
+  return st;
+}
+// el tejido: axones (más gruesos si sus conexiones son fuertes), dendritas, cuerpos y nudos en las conexiones fuertes
+function paintTissue(step) {
+  const st = cellStrengths(), Pm = CU.PARAMS;
+  const L = linesCv.getContext('2d'); L.clearRect(0, 0, FW, FH); L.lineCap = 'round'; L.strokeStyle = '#fff';
+  const sg = cul.seg, ns = sg.x0.length;
+  const LEVELS = 6;
+  for (let lv = 0; lv < LEVELS; lv++) {
+    L.beginPath(); let any = false;
+    for (let k = 0; k < ns; k++) {
+      if (sg.born[k] > step) break;
+      const v = st[sg.cell[k]], b = Math.min(LEVELS - 1, Math.floor(v * 2.2 * LEVELS));
+      if (b !== lv) continue;
+      L.moveTo(fpx(sg.y0[k]), fpy(sg.x0[k])); L.lineTo(fpx(sg.y1[k]), fpy(sg.x1[k])); any = true;
+    }
+    if (any) { L.globalAlpha = 0.18 + 0.16 * lv; L.lineWidth = (0.05 + 0.07 * lv) * pxmm; L.stroke(); }
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  return g;
-}
-function buildCultivoView() {
-  const N = cul.N, sy = cul.syn;
-  // axones: líneas finas
-  const ax = new THREE.LineSegments(lineGeo(cul.seg, { z: 0.00002, color: (k) => cul.inh[cul.seg.cell[k]] ? [0.4, 0.6, 1] : [0.85, 0.75, 0.45] }),
-    new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.22, depthWrite: false }));
-  // dendritas: ramas cortas, más visibles
-  const de = new THREE.LineSegments(lineGeo(cul.den, { z: 0.00004, color: (k) => cul.inh[cul.den.cell[k]] ? [0.5, 0.7, 1] : [0.95, 0.8, 0.42] }),
-    new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.75, depthWrite: false }));
-  // sinapsis: un punto donde un axón cruza una dendrita; brillo = fuerza
-  const sp = new Float32Array(cul.S * 3), sc = new Float32Array(cul.S * 3);
-  for (let s = 0; s < cul.S; s++) { const v = P3(sy.x[s], sy.y[s], 0.00006); sp.set([v.x, v.y, v.z], s * 3); }
-  const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(sp, 3)); sg.setAttribute('color', new THREE.BufferAttribute(sc, 3));
-  const syn = new THREE.Points(sg, new THREE.PointsMaterial({ size: 2, sizeAttenuation: false, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-  // cuerpos de las células
-  const soma = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 12, 8), new THREE.MeshBasicMaterial({ toneMapped: false }), N);
-  const m4 = new THREE.Matrix4();
-  for (let i = 0; i < N; i++) {
-    const r = cul.size[i] * MM, p = P3(cul.cx[i], cul.cy[i], 0.00008);
-    m4.compose(p, new THREE.Quaternion(), new THREE.Vector3(r, r * 0.45, r)); soma.setMatrixAt(i, m4);
-    soma.setColorAt(i, new THREE.Color(0, 0, 0));
+  const dd = cul.den; L.globalAlpha = 0.85; L.lineWidth = 0.22 * pxmm; L.beginPath();
+  for (let k = 0; k < dd.x0.length; k++) { if (dd.born[k] > step) break; L.moveTo(fpx(dd.y0[k]), fpy(dd.x0[k])); L.lineTo(fpx(dd.y1[k]), fpy(dd.x1[k])); }
+  L.stroke(); L.globalAlpha = 1;
+  const F = fieldCv.getContext('2d');
+  F.globalCompositeOperation = 'source-over'; F.fillStyle = '#000'; F.fillRect(0, 0, FW, FH);
+  F.globalCompositeOperation = 'lighter';
+  F.filter = 'blur(' + (0.12 * pxmm).toFixed(1) + 'px)'; F.drawImage(linesCv, 0, 0); F.filter = 'none';
+  // cuerpos: masa según su tamaño y la fuerza de su red
+  for (let i = 0; i < cul.N; i++) {
+    const r = (0.9 + cul.size[i] * 1.6 + st[i] * 1.2) * pxmm;
+    F.globalAlpha = 0.9; F.drawImage(SPR, fpx(cul.cy[i]) - r, fpy(cul.cx[i]) - r, 2 * r, 2 * r);
   }
-  // estimulación: anillo bajo la pelota y franja bajo la paleta
-  const stimMat = new THREE.MeshBasicMaterial({ color: 0x6ff3ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false });
-  const ringBall = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 48), stimMat); ringBall.rotation.x = -Math.PI / 2;
-  const stripMat = stimMat.clone(); const strip = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), stripMat); strip.rotation.x = -Math.PI / 2;
-  for (const o of [ax, de, syn, soma, ringBall, strip]) { o.renderOrder = 2; cultivoGroup.add(o); }
-  culView = { ax, de, syn, soma, ringBall, strip, stimMat, stripMat, replay: 0, lastSyn: -1e9 };
-  paintSynapses();
-}
-function paintSynapses() {
-  const c = culView.syn.geometry.attributes.color, Pm = CU.PARAMS;
-  for (let s = 0; s < cul.S; s++) {
-    const inh = cul.inh[cul.pre[s]], w = inh ? 0.3 : cul.W[s] / Pm.wMax;
-    const b = 0.05 + 0.9 * Math.pow(w, 1.4);
-    c.setXYZ(s, b, b * (inh ? 1 : 0.85), b * (inh ? 1.2 : 0.5));
+  // nudos donde una conexión se fortaleció (sale de las conexiones, como un micelio)
+  const sy = cul.syn, S = sy.pre.length;
+  for (let s = 0; s < S; s++) {
+    if (sy.born[s] > step) continue;
+    const pre = sy.pre[s]; if (cul.inh[pre]) continue;
+    const w = (cul.W ? cul.W[s] : sy.w[s]) / Pm.wMax;
+    if (w < 0.35) continue;
+    const r = (0.25 + 1.1 * (w - 0.35)) * pxmm;
+    F.globalAlpha = Math.min(1, (w - 0.35) * 1.6); F.drawImage(SPR, fpx(sy.y[s]) - r, fpy(sy.x[s]) - r, 2 * r, 2 * r);
   }
-  c.needsUpdate = true;
+  F.globalAlpha = 1; F.globalCompositeOperation = 'source-over';
+  fieldTex.needsUpdate = true;
 }
-// repetición del crecimiento en cámara rápida: muestra solo lo que ya había crecido en cada "hora"
-function showGrowthUpTo(step) {
-  const upto = (arr) => { let lo = 0, hi = arr.length; while (lo < hi) { const m = (lo + hi) >> 1; if (arr[m] <= step) lo = m + 1; else hi = m; } return lo; };
-  culView.ax.geometry.setDrawRange(0, upto(cul.seg.born) * 2);
-  culView.de.geometry.setDrawRange(0, upto(cul.den.born) * 2);
-  culView.syn.geometry.setDrawRange(0, upto(cul.syn.born));
+// actividad: dónde dispararon las células en los últimos ms, y dónde estimulan los electrodos
+function paintActivity() {
+  const A = actCv.getContext('2d'), k = actCv.width / FW, t = cul.t;
+  A.globalCompositeOperation = 'source-over'; A.fillStyle = '#000'; A.fillRect(0, 0, actCv.width, actCv.height);
+  A.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < cul.N; i++) {
+    const since = t - cul.lastSpike[i]; if (since > 90) continue;
+    const f = 1 - since / 90, r = (1.4 + 1.2 * f) * pxmm * k;
+    A.globalAlpha = f; A.drawImage(SPR_ACT, fpx(cul.cy[i]) * k - r, fpy(cul.cx[i]) * k - r, 2 * r, 2 * r);
+  }
+  const Lg = cul.stimLog;
+  for (let q = Math.max(0, Lg.length - 80); q < Lg.length; q += 4) {
+    const age = t - Lg[q]; if (age > 60) continue;
+    const f = 1 - age / 60, rad = Lg[q + 3] >= 0 ? Lg[q + 3] : -Lg[q + 3], r = rad * 1.3 * pxmm * k;
+    A.globalAlpha = f * 0.8; A.drawImage(SPR_STIM, fpx(Lg[q + 2]) * k - r, fpy(Lg[q + 1]) * k - r, 2 * r, 2 * r);
+  }
+  if (Lg.length > 2000) cul.stimLog = Lg.slice(Lg.length - 400);
+  A.globalAlpha = 1; A.globalCompositeOperation = 'source-over';
+  actTex.needsUpdate = true;
 }
 
 // juego: piezas sobre la pantalla (se mueven en coordenadas de la pantalla)
@@ -484,34 +534,17 @@ function frame(now) {
     // cámara rápida del crecimiento ya calculado
     culView.replay += dt;
     const step = Math.floor(cul.growth.total * Math.min(1, culView.replay / GROW_REPLAY_MS));
-    showGrowthUpTo(step);
+    if (now - culView.lastField > 350) { culView.lastField = now; paintTissue(step); }
     $('#phase').textContent = culView.replay < GROW_REPLAY_MS ? 'creciendo · día ' + Math.max(1, Math.ceil(step / CU.PARAMS.stepsPerDay)) + ' de 21' : 'red formada · empieza el juego';
     if (culView.replay >= GROW_REPLAY_MS) cul.setCondition(cond);
-    for (let i = 0; i < cul.N; i++) culView.soma.setColorAt(i, cul.inh[i] ? cI : cE);
-    culView.soma.instanceColor.needsUpdate = true;
+    if (culView.replay >= GROW_REPLAY_MS) paintTissue(1e9);
   } else if (ready) {
     acc += dt * speed; let n = Math.floor(acc); acc -= n;
     const t0 = performance.now();
     while (n-- > 0) { cul.step(); if (performance.now() - t0 > 22) { acc = 0; break; } }
     cul.spikeLog = [];
-    // células: blancas cuando disparan
-    const t = cul.t;
-    for (let i = 0; i < cul.N; i++) {
-      const since = t - cul.lastSpike[i], f = since < 60 ? 1 - since / 60 : 0;
-      tmpC.copy(cul.inh[i] ? cI : cE).lerp(white, f).multiplyScalar(1 + 2.5 * f);
-      culView.soma.setColorAt(i, tmpC);
-    }
-    culView.soma.instanceColor.needsUpdate = true;
-    // estimulación de los últimos 40 ms
-    let ballStim = 0, padStim = 0; const L = cul.stimLog;
-    for (let k = Math.max(0, L.length - 80); k < L.length; k += 4) {
-      const age = t - L[k]; if (age > 40) continue;
-      if (L[k + 3] >= 0) { ballStim = Math.max(ballStim, 1 - age / 40); const p = P3(L[k + 1], L[k + 2], 0.0001); culView.ringBall.position.copy(p); culView.ringBall.scale.setScalar(L[k + 3] * MM); }
-      else { padStim = Math.max(padStim, 1 - age / 40); const half = -L[k + 3]; const p = P3(L[k + 1], L[k + 2], 0.0001); culView.strip.position.copy(p); culView.strip.scale.set(2 * half * MM, 2 * CU.PARAMS.padR * MM, 1); culView.strip.rotation.set(-Math.PI / 2, 0, 0); }
-    }
-    if (L.length > 2000) cul.stimLog = L.slice(L.length - 400);
-    culView.stimMat.opacity = 0.9 * ballStim; culView.stripMat.opacity = 0.35 * padStim;
-    if (now - culView.lastSyn > 2500) { culView.lastSyn = now; paintSynapses(); }
+    paintActivity();
+    if (now - culView.lastField > 3000) { culView.lastField = now; paintTissue(1e9); }   // el tejido sigue a las conexiones que cambian
     // juego → piezas
     const by = cul.ball.y, bx = cul.ball.x;
     const yp = Y_PAD + PAD_T + BALL_R, ya = Y_ADV - PAD_T - BALL_R;
