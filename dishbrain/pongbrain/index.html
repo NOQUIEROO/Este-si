@@ -50,7 +50,7 @@ const W0 = -0.0346, W1 = 0.0346;               // la cancha en x de Blender
 const Y_PAD = -0.03945, Y_ADV = 0.03085;       // centros de las paletas en y de Blender
 const BALL_R = 0.0026, PAD_T = 0.0024;
 const LID_TRAVEL = 0.058, MOD_TRAVEL = 0.0185;
-const STUDIO = new THREE.Color(0xd9d2c3);
+const STUDIO = new THREE.Color(0xe4ded3);   // el mismo tono que el piso iluminado: no se ve el horizonte
 
 // ---------- escena
 const canvas = $('#view');
@@ -63,7 +63,7 @@ renderer.toneMappingExposure = 0.95;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.background = STUDIO.clone();
-scene.fog = new THREE.Fog(scene.background, 0.45, 1.1);
+scene.fog = new THREE.Fog(scene.background, 0.3, 0.75);
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
 scene.environmentIntensity = 0.75;
@@ -74,11 +74,12 @@ controls.minDistance = 0.11; controls.maxDistance = 0.5;
 controls.maxPolarAngle = THREE.MathUtils.degToRad(78);
 controls.enablePan = false;
 
-const key = new THREE.DirectionalLight(0xfff4e6, 2.0); key.position.copy(B(0.16, -0.3, 0.42)); key.castShadow = true;
+const key = new THREE.DirectionalLight(0xfff4e6, 2.6); key.position.copy(B(0.16, -0.3, 0.42)); key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048); Object.assign(key.shadow.camera, { left: -0.14, right: 0.14, top: 0.14, bottom: -0.14, near: 0.1, far: 1.2 });
 key.shadow.bias = -0.00015; key.shadow.normalBias = 0.0004; key.shadow.radius = 5; scene.add(key);
-const fill = new THREE.DirectionalLight(0xe9eeff, 0.45); fill.position.copy(B(0.35, 0.15, 0.25)); scene.add(fill);
-scene.add(new THREE.HemisphereLight(0xfffaf0, 0xc9bb9c, 0.6));   // rebote del estudio: los costados no quedan negros
+const fill = new THREE.DirectionalLight(0xe9eeff, 0.3); fill.position.copy(B(0.35, 0.15, 0.25)); scene.add(fill);
+scene.add(new THREE.HemisphereLight(0xfffaf0, 0xc9bb9c, 0.35));   // rebote del estudio: los costados no quedan negros
+const rim = new THREE.DirectionalLight(0xffffff, 1.1); rim.position.copy(B(-0.3, 0.35, 0.18)); scene.add(rim);   // contraluz: marca los bordes
 // la luz de las neuronas: una lámina en el borde superior de la cancha, desde la botonera hasta el arco del adversario, mirando hacia abajo
 RectAreaLightUniformsLib.init();
 const sheet = new THREE.RectAreaLight(0xf2ffe8, 10, 0.106, 0.0034);
@@ -178,6 +179,22 @@ const get = (n) => root.getObjectByName(san(n));
 root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
 const floor = get('piso');
 if (floor) floor.traverse((x) => { if (x.isMesh) { x.castShadow = false; x.material.envMapIntensity = 0.6; } });
+// piso de estudio infinito: sigue al piso horneado y se funde con el fondo, sin horizonte
+if (floor) floor.traverse((x) => {
+  if (!x.isMesh || x.userData.ext) return;
+  const m = x.material.clone(); m.aoMap = null; m.needsUpdate = true;
+  const big = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), m); big.rotation.x = -Math.PI / 2;
+  const wp = new THREE.Vector3(); x.getWorldPosition(wp); big.position.set(wp.x, wp.y - 0.0002, wp.z);
+  big.receiveShadow = true; big.userData.ext = true; scene.add(big);
+});
+// plásticos: los módulos de color con laca brillante, el crema satinado
+root.traverse((o) => {
+  if (!o.isMesh || !o.material || !o.material.name) return;
+  const n = o.material.name, m = o.material;
+  if (/tomate|cobalto/.test(n) && 'clearcoat' in m) { m.clearcoat = 0.6; m.clearcoatRoughness = 0.18; m.roughness = 0.38; }
+  if (/crema/.test(n)) { m.roughness = 0.42; m.envMapIntensity = 1.1; }
+  if (/acero/.test(n)) { m.metalness = 1; m.roughness = 0.28; m.envMapIntensity = 1.4; }
+});
 
 // ---------- placa: tu silicio verde con electrodos grises, y el tejido del cultivo encima
 const PXA = -34.6, PXB = 34.6, PYA = -69.0, PYB = 37.9;
