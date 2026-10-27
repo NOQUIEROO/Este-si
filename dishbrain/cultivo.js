@@ -81,7 +81,10 @@
     // zona de entrada del paper: una fila de sitios de estímulo entre la cancha y las zonas motoras
     rival: true,
     todo: false,
-    padStim: 1,              // fuerza de la corriente bajo la propia paleta (relativa a la de la pelota)
+    padStim: 1,
+    // STDP inhibitorio (Vogels et al. 2011): los frenos que llegan a una célula se refuerzan si dispara de más
+    // y se aflojan si dispara de menos, buscando istdpRate disparos por segundo
+    istdp: 0, istdpRate: 5,              // fuerza de la corriente bajo la propia paleta (relativa a la de la pelota)
     missDistK: 3,            // con todo: el castigo crece con lo lejos que pasó la pelota de la paleta (hasta 1 + missDistK veces)             // true: premio y castigo en toda la placa (todo el cerebro), no solo en la zona de entrada
     // estabilidad de neuronas reales: cada célula ajusta su excitabilidad hacia homeoRate disparos por segundo,
     // y el STDP es multiplicativo (lo fuerte crece menos, lo débil se debilita menos)
@@ -570,7 +573,9 @@
         const j = this.post[s];
         buf[((this.t + this.delay[s]) % D) * n + j] += neg * W[s];
         if (!this.inh[i]) E[s] -= P.aMinus * this.yPost[j];
+        else if (P.istdp) W[s] = Math.min(P.wMax, Math.max(0, W[s] + P.istdp * (this.yPost[j] - 2 * P.istdpRate * P.tauTrace / 1000)));
       }
+      if (P.istdp) for (const s of this.inS[i]) if (this.inh[this.pre[s]]) W[s] = Math.min(P.wMax, W[s] + P.istdp * this.xPre[this.pre[s]]);
       for (const s of this.inS[i]) if (!this.inh[this.pre[s]]) E[s] += P.aPlus * this.xPre[this.pre[s]];
       this.xPre[i] += 1; this.yPost[i] += 1;
       if (this.zone[i] === 2) nUp++; else if (this.zone[i] === 3) nDown++;
