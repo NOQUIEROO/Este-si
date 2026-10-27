@@ -50,6 +50,8 @@ for (const { v, seed } of mias) {
   }
   if (curva.length < 2) break;
   if (cortada) console.log('cortada', JSON.stringify(v), seed);
+  // el cerebro de cada cultivo, tal como quedó (para seguir entrenándolo después)
+  fs.writeFileSync(`resultados/cerebro_${seed}_${v.control ? 'control' : 'feedback'}.json`, JSON.stringify({ seed, params: v, W: Buffer.from(new Float32Array(c.W).buffer).toString('base64') }));
   const final = +(curva.slice(-2).reduce((a, b) => a + b) / 2).toFixed(3);
   const r = { v, seed, curva, seg, final, goles: c.goals, golesAdv: c.totalMisses, golpes: c.totalHits, mejora: +(curva.slice(-2).reduce((a, b) => a + b) / 2 - curva.slice(0, 2).reduce((a, b) => a + b) / 2).toFixed(3) };
   fs.writeFileSync(`resultados/corrida_${core}_${corridas.indexOf(corridas.find((x) => x.v === v && x.seed === seed))}.json`, JSON.stringify(r));
