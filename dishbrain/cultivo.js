@@ -81,6 +81,7 @@
     // zona de entrada del paper: una fila de sitios de estímulo entre la cancha y las zonas motoras
     rival: true,
     todo: false,
+    padStim: 1,              // fuerza de la corriente bajo la propia paleta (relativa a la de la pelota)
     missDistK: 3,            // con todo: el castigo crece con lo lejos que pasó la pelota de la paleta (hasta 1 + missDistK veces)             // true: premio y castigo en toda la placa (todo el cerebro), no solo en la zona de entrada
     // estabilidad de neuronas reales: cada célula ajusta su excitabilidad hacia homeoRate disparos por segundo,
     // y el STDP es multiplicativo (lo fuerte crece menos, lo débil se debilita menos)
@@ -432,7 +433,7 @@
       const rel = Math.max(0, Math.min(1, 0.5 + (this.ball.y - this.paddle)));
       out.push({ x: c.x0 + rel * (c.x1 - c.x0), y: b.y, r: P.ballR });
     } else out.push({ x: b.x, y: b.y, r: P.ballR });
-    if (m === 'pantalla') out.push(this.paddleOnPlate());
+    if (m === 'pantalla') out.push(Object.assign(this.paddleOnPlate(), { own: true }));
     if (m === 'pantalla' || m === 'relativa+adv') out.push(this.advOnPlate());
     return out;
   };
@@ -458,7 +459,11 @@
       else if (r() < 0.04) this.stimDisk(c.x0 + r() * (c.x1 - c.x0), c.y0 + r() * (c.y1 - c.y0), 6);
       if (!P.paper && C.jitter && r() < 0.5) { const s = Math.floor(r() * this.S); if (!this.inh[this.pre[s]]) this.W[s] = Math.max(0, Math.min(P.wMax, this.W[s] + r.gauss() * P.jitter)); }
     } else if (this.phase === 'juego' && C.sensory && this.t >= this.nextPulse) {
-      for (const g of this.targets()) { if (g.rect) this.stimRect(g.rect); else if (g.half != null) this.stimStrip(g); else this.stimDisk(g.x, g.y, g.r); }
+      for (const g of this.targets()) {
+        if (g.rect) this.stimRect(g.rect);
+        else if (g.half != null) { const k = P.stimI; if (g.own) P.stimI = k * P.padStim; this.stimStrip(g); P.stimI = k; }
+        else this.stimDisk(g.x, g.y, g.r);
+      }
       const f = 4 + 36 * Math.min(1, Math.max(0, 1 - this.ball.x));
       this.nextPulse = this.t + Math.round(1000 / f);
     }
