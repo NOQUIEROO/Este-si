@@ -1,1 +1,1 @@
-{"seed": 101, "v": {}, "params": {"stimMode": "pantalla", "todo": true, "rival": false, "stdpRate": 0.005, "tauTrace": 20, "istdp": 0.05, "paper": true}, "curva": [], "final": 0}
+{"seed": 104, "v": {}, "params": {"stimMode": "paper", "rival": false, "stdpRate": 0.005, "tauTrace": 20, "paper": true, "todo": false, "istdp": 0}, "curva": [], "final": 0}
