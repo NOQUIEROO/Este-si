@@ -196,6 +196,49 @@ root.traverse((o) => {
   if (/acero/.test(n)) { m.metalness = 1; m.roughness = 0.28; m.envMapIntensity = 1.4; }
 });
 
+// ---------- luz horneada en Blender (estudio completo: luz directa y rebotes) sobre cada pieza
+async function cargarLuces() {
+  let meta, blobDe;
+  const el = document.getElementById('luces-datos');
+  if (el) {
+    const d = JSON.parse(el.textContent); meta = d.meta;
+    blobDe = async (f) => new Blob([Uint8Array.from(atob(d.files[f]), (c) => c.charCodeAt(0))], { type: 'image/jpeg' });
+  } else {
+    const r = await fetch('luces/luces.json'); if (!r.ok) return null; meta = await r.json();
+    blobDe = async (f) => (await fetch('luces/' + f)).blob();
+  }
+  const tex = {};
+  await Promise.all(Object.entries(meta.mapas).map(async ([name, f]) => {
+    const bmp = await createImageBitmap(await blobDe(f));   // sin dar vuelta: igual que las coordenadas del glTF
+    const t = new THREE.Texture(bmp); t.colorSpace = THREE.SRGBColorSpace; t.flipY = false; t.generateMipmaps = true; t.needsUpdate = true;
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy(); tex[name] = { t, bmp };
+  }));
+  return { escala: meta.escala, tex };
+}
+const luces = await cargarLuces().catch(() => null);
+if (luces) {
+  const PI = Math.PI;
+  for (const [name, { t, bmp }] of Object.entries(luces.tex)) {
+    const o = get(name); if (!o) continue;
+    o.traverse((x) => {
+      if (!x.isMesh) return;
+      const old = x.material, brillo = /tomate|cobalto/.test(old.name) ? 0.1 : /acero/.test(old.name) ? 0.35 : 0.035;
+      x.material = new THREE.MeshBasicMaterial({ color: old.color.clone(), map: old.map || null, lightMap: t, lightMapIntensity: luces.escala * PI,
+        envMap: scene.environment, combine: THREE.AddOperation, reflectivity: brillo });
+      x.material.name = old.name; x.castShadow = false; x.receiveShadow = false;
+    });
+    if (name === 'piso') {   // el piso infinito toma el tono del borde del piso horneado
+      const c = document.createElement('canvas'); c.width = c.height = 8; const g = c.getContext('2d'); g.drawImage(bmp, 0, 0, 8, 8);
+      const px = g.getImageData(0, 0, 1, 1).data, lin = (v) => Math.pow(v / 255, 2.2) * luces.escala;
+      const fm = get('piso').getObjectByProperty('isMesh', true).material, col = fm.color.clone().multiply(new THREE.Color(lin(px[0]), lin(px[1]), lin(px[2])));
+      scene.traverse((x) => { if (x.userData.ext) x.material = new THREE.MeshBasicMaterial({ color: col }); });
+      scene.background = col.clone(); scene.fog.color = col.clone();
+    }
+  }
+  // lo horneado ya trae sombras y luz: las luces en vivo quedan solo para las piezas chicas
+  key.castShadow = false; key.intensity = 1.2; fill.intensity = 0.2; rim.intensity = 0.4;
+}
+
 // ---------- placa: tu silicio verde con electrodos grises, y el tejido del cultivo encima
 const PXA = -34.6, PXB = 34.6, PYA = -69.0, PYB = 37.9;
 function dataTex(w, h, format, data) {
