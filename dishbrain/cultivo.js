@@ -79,7 +79,10 @@
     paper: true, stdpRate: 0.05,
     missStim: 2,
     // zona de entrada del paper: una fila de sitios de estímulo entre la cancha y las zonas motoras
-    rival: true,             // false: como el paper, sin rival; la pelota rebota en la pared del fondo
+    rival: true,
+    // estabilidad de neuronas reales: cada célula ajusta su excitabilidad hacia homeoRate disparos por segundo,
+    // y el STDP es multiplicativo (lo fuerte crece menos, lo débil se debilita menos)
+    homeo: false, homeoRate: 3, homeoEta: 0.02, stdpMult: false,             // false: como el paper, sin rival; la pelota rebota en la pared del fondo
     sites: 8, siteY: -49, siteR: 3.2, restMs: 4000, gainTarget: 20,             // la descarga al fallar es el doble de fuerte que la del juego (150 mV contra 75 mV en el paper)
     missScale: 1,            // cuánto pesa el castigo de una falla (0: solo se premian los aciertos)     // true: el premio solo cambia las conexiones que llegan a las células motoras
     // aprendizaje
@@ -457,7 +460,11 @@
   Cultivo.prototype.modulate = function (m) {
     if (m !== 0) {
       const W = this.W, E = this.E, k = P.lr * m;
-      for (let s = 0; s < this.S; s++) if (!this.inh[this.pre[s]] && (!P.plasticMotor || this.zone[this.post[s]] >= 2)) W[s] = Math.max(0, Math.min(P.wMax, W[s] + k * E[s]));
+      for (let s = 0; s < this.S; s++) if (!this.inh[this.pre[s]] && (!P.plasticMotor || this.zone[this.post[s]] >= 2)) {
+        let d = k * E[s];
+        if (P.stdpMult) d *= d > 0 ? (P.wMax - W[s]) / P.wMax : W[s] / P.wMax;   // multiplicativo: no se escapa a los extremos
+        W[s] = Math.max(0, Math.min(P.wMax, W[s] + d));
+      }
       // escalado sináptico por célula receptora
       const sum = new Float32Array(this.N);
       for (let s = 0; s < this.S; s++) if (!this.inh[this.pre[s]]) sum[this.post[s]] += W[s];
@@ -528,7 +535,7 @@
     const v = this.v, u = this.u, inp = this.inp, buf = this.buf, sp = this.spiked;
     let nUp = 0, nDown = 0;
     for (let i = 0; i < n; i++) {
-      const I = inp[i] + buf[slot + i] + P.noise * r.gauss();
+      const I = inp[i] + buf[slot + i] + P.noise * r.gauss() + (this.bias ? this.bias[i] : 0);
       buf[slot + i] = 0; inp[i] = 0;
       let vi = v[i], ui = u[i];
       vi += 0.5 * (0.04 * vi * vi + 5 * vi + 140 - ui + I);
@@ -543,6 +550,7 @@
     for (let i = 0; i < n; i++) {
       if (!sp[i]) continue;
       this.lastSpike[i] = this.t;
+      if (this.cnt) this.cnt[i]++;
       if (this.spikeLog.length < 40000) this.spikeLog.push(this.t, i);
       const neg = this.inh[i] ? -1 : 1;
       for (const s of this.outS[i]) {
@@ -553,6 +561,10 @@
       for (const s of this.inS[i]) if (!this.inh[this.pre[s]]) E[s] += P.aPlus * this.xPre[this.pre[s]];
       this.xPre[i] += 1; this.yPost[i] += 1;
       if (this.zone[i] === 2) nUp++; else if (this.zone[i] === 3) nDown++;
+    }
+    if (P.homeo && this.t % 100 === 0) {   // homeostasis: cada célula se acerca a su tasa de disparo de siempre
+      if (!this.bias) { this.bias = new Float32Array(this.N); this.cnt = new Uint16Array(this.N); }
+      else for (let i = 0; i < this.N; i++) { const hz = this.cnt[i] * 10; this.bias[i] = Math.max(-8, Math.min(8, this.bias[i] + P.homeoEta * (P.homeoRate - hz))); this.cnt[i] = 0; }
     }
     if (P.paper && this.condition !== 'reposo' && this.t % 100 === 0 && P.stdpRate > 0) { const lr = P.lr; P.lr = P.stdpRate; this.modulate(1); P.lr = lr; }
     if (this.t % 10 === 0) { const dE = Math.exp(-10 / P.tauElig); for (let s = 0; s < this.S; s++) E[s] *= dE; }
