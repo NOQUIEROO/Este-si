@@ -80,6 +80,8 @@
     missStim: 2,
     // zona de entrada del paper: una fila de sitios de estímulo entre la cancha y las zonas motoras
     rival: true,
+    todo: false,
+    missDistK: 3,            // con todo: el castigo crece con lo lejos que pasó la pelota de la paleta (hasta 1 + missDistK veces)             // true: premio y castigo en toda la placa (todo el cerebro), no solo en la zona de entrada
     // estabilidad de neuronas reales: cada célula ajusta su excitabilidad hacia homeoRate disparos por segundo,
     // y el STDP es multiplicativo (lo fuerte crece menos, lo débil se debilita menos)
     homeo: false, homeoRate: 3, homeoEta: 0.02, stdpMult: false,             // false: como el paper, sin rival; la pelota rebota en la pared del fondo
@@ -442,11 +444,15 @@
     const C = CONDITIONS[this.condition], r = this.r, c = P.court;
     if (this.phase === 'predecible' || this.phase === 'gol') {
       if (this.t % 10 === 0) {
-        if (P.stimMode === 'paper') for (let k = 0; k < P.sites; k++) { const g = this.site(k); this.stimDisk(g.x, g.y, g.r); }   // todos los sitios de entrada a la vez, 100 Hz
+        if (P.todo) { for (let i = 0; i < this.N; i++) if (r() < P.stimP) this.inp[i] += P.stimI; if (this.stimLog.length < 4000) this.stimLog.push(this.t, 0, -15.55, -1000 - 34.6); }   // toda la placa a la vez, 100 Hz
+        else if (P.stimMode === 'paper') for (let k = 0; k < P.sites; k++) { const g = this.site(k); this.stimDisk(g.x, g.y, g.r); }   // todos los sitios de entrada a la vez, 100 Hz
         else for (let k = 0; k < 8; k++) this.stimDisk(c.x0 + (k + 0.5) * (c.x1 - c.x0) / 8, (c.y0 + c.y1) / 2, 40);
       }
     } else if (this.phase === 'impredecible') {
-      if (P.stimMode === 'paper') {   // 150 mV (el doble), en sitios de entrada al azar, en momentos al azar (5 por segundo en promedio)
+      if (P.todo) {   // el doble de fuerte, en cualquier punto de toda la placa, en momentos al azar (5 por segundo en promedio)
+        const f = 1 + P.missDistK * (this.missDist || 0);   // más lejos pasó la pelota: más fuerte y más seguido
+        if (r() < 0.005 * f) { const k = P.stimI, pl = P.plate; P.stimI = k * P.missStim * f; this.stimDisk(pl.x0 + r() * (pl.x1 - pl.x0), pl.y0 + r() * (pl.y1 - pl.y0), 6); P.stimI = k; }
+      } else if (P.stimMode === 'paper') {   // 150 mV (el doble), en sitios de entrada al azar, en momentos al azar (5 por segundo en promedio)
         if (r() < 0.005) { const k = P.stimI; P.stimI = k * P.missStim; const g = this.site(Math.floor(r() * P.sites)); this.stimDisk(g.x, g.y, g.r); P.stimI = k; }
       } else if (P.paper) { if (this.t >= this.nextPulse) { const k = P.stimI; P.stimI = k * P.missStim; this.stimDisk(c.x0 + r() * (c.x1 - c.x0), c.y0 + r() * (c.y1 - c.y0), 6); P.stimI = k; this.nextPulse = this.t + 200; } }
       else if (r() < 0.04) this.stimDisk(c.x0 + r() * (c.x1 - c.x0), c.y0 + r() * (c.y1 - c.y0), 6);
@@ -487,6 +493,8 @@
     else this.serve();
   };
   Cultivo.prototype.onMiss = function () {
+    // qué tan lejos de la paleta pasó la pelota (0 = rozando el borde, 1 = la otra punta de la cancha)
+    this.missDist = Math.min(1, Math.max(0, Math.abs(this.ball.y - this.paddle) - P.paddleHalf) / (1 - P.paddleHalf));
     const C = CONDITIONS[this.condition];
     this.totalMisses++; this.lastEvent = 'fallo'; this.rallies.push({ t: this.t, hits: this.rally }); this.rally = 0;
     if (!P.paper) this.modulate(C.modMiss * (this.expect + P.missFloor) * P.missScale); this.expect += (0 - this.expect) * P.expectRate;
@@ -528,7 +536,7 @@
     const n = this.N, r = this.r, D = this.D, slot = (this.t % D) * n;
     if (this.phase !== 'juego' && this.t >= this.phaseEnd) {
       if (this.phase === 'predecible') this.phase = 'juego';
-      else if (this.phase === 'impredecible' && P.stimMode === 'paper') { this.phase = 'descanso'; this.phaseEnd = this.t + P.restMs; }   // 4 s sin nada
+      else if (this.phase === 'impredecible' && (P.stimMode === 'paper' || P.todo)) { this.phase = 'descanso'; this.phaseEnd = this.t + P.restMs; }   // 4 s sin nada
       else this.serve();
     }
     this.stimulate();
