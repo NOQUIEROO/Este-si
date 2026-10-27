@@ -79,6 +79,7 @@
     paper: true, stdpRate: 0.05,
     missStim: 2,
     // zona de entrada del paper: una fila de sitios de estímulo entre la cancha y las zonas motoras
+    rival: true,             // false: como el paper, sin rival; la pelota rebota en la pared del fondo
     sites: 8, siteY: -49, siteR: 3.2, restMs: 4000, gainTarget: 20,             // la descarga al fallar es el doble de fuerte que la del juego (150 mV contra 75 mV en el paper)
     missScale: 1,            // cuánto pesa el castigo de una falla (0: solo se premian los aciertos)     // true: el premio solo cambia las conexiones que llegan a las células motoras
     // aprendizaje
@@ -503,13 +504,15 @@
     const want = b.vx > 0 ? b.y : 0.5, dv = Math.max(-P.advSpeed * dt, Math.min(P.advSpeed * dt, want - this.adv));
     this.adv = Math.max(P.paddleHalf, Math.min(1 - P.paddleHalf, this.adv + dv));
     if (b.x > 1) {
-      if (Math.abs(b.y - this.adv) <= P.paddleHalf + 0.012) { b.x = 2 - b.x; b.vx = -b.vx; }
+      if (!P.rival || Math.abs(b.y - this.adv) <= P.paddleHalf + 0.012) { b.x = 2 - b.x; b.vx = -b.vx; }
       else { b.x = 1; this.onGoal(); return; }
     }
     if (b.x <= 0) {
       if (Math.abs(b.y - this.paddle) <= P.paddleHalf + 0.012) {
         const off = (b.y - this.paddle) / P.paddleHalf, ang = off * 0.35 * Math.PI + (this.r() - 0.5) * 0.25;
         b.x = -b.x; b.vx = P.ballSpeed * Math.cos(ang); b.vy = P.ballSpeed * Math.sin(ang); this.onHit();
+      } else if (!P.rival && CONDITIONS[this.condition].miss === 'nada') {   // sin feedback (paper): la pelota rebota en la pared de atrás y sigue
+        this.totalMisses++; this.lastEvent = 'fallo'; this.rallies.push({ t: this.t, hits: this.rally }); this.rally = 0; b.x = -b.x; b.vx = -b.vx;
       } else { b.x = 0; this.onMiss(); }
     }
   };
