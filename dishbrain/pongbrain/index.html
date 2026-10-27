@@ -232,7 +232,10 @@ if (luces) {
       const px = g.getImageData(0, 0, 1, 1).data, lin = (v) => Math.pow(v / 255, 2.2) * luces.escala;
       const fm = get('piso').getObjectByProperty('isMesh', true).material, col = fm.color.clone().multiply(new THREE.Color(lin(px[0]), lin(px[1]), lin(px[2])));
       scene.traverse((x) => { if (x.userData.ext) x.material = new THREE.MeshBasicMaterial({ color: col }); });
-      scene.background = col.clone(); scene.fog.color = col.clone();
+      // fondo: una esfera del mismo color y con el mismo procesado que el piso, así piso y fondo se funden
+      const domo = new THREE.Mesh(new THREE.SphereGeometry(2.5, 48, 24), new THREE.MeshBasicMaterial({ color: col, side: THREE.BackSide, fog: false }));
+      scene.add(domo); scene.fog = null;
+      scene.traverse((x) => { if (x.userData.ext) x.material.fog = false; });
     }
   }
   // lo horneado ya trae sombras y luz: las luces en vivo quedan solo para las piezas chicas
