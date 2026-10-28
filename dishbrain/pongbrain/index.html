@@ -5,12 +5,12 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* Estudio crema: el aparato solo, sin texto. Se maneja tocándolo. */
-:root { --studio: #d9d2c3; --ink: #3a3328; color-scheme: light; }
+:root { --studio: #000; --ink: #3a3328; color-scheme: light; }
 html, body { height: 100%; margin: 0; }
-body { background: var(--studio); overflow: hidden; font: 600 13px/1.4 ui-monospace, Menlo, monospace; color: var(--ink); }
+body { background: var(--studio); overflow: hidden; font: 600 13px/1.4 ui-monospace, Menlo, monospace; color: #ccc; }
 #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-#bar { position: fixed; left: 50%; top: 50%; width: 160px; height: 3px; margin-left: -80px; background: rgba(58, 51, 40, 0.15); border-radius: 2px; overflow: hidden; }
-#bar i { display: block; height: 100%; width: 0; background: var(--ink); transition: width 0.2s; }
+#bar { position: fixed; left: 50%; top: 50%; width: 160px; height: 3px; margin-left: -80px; background: rgba(255,255,255,0.15); border-radius: 2px; overflow: hidden; }
+#bar i { display: block; height: 100%; width: 0; background: #ddd; transition: width 0.2s; }
 #bar[hidden], #err[hidden] { display: none; }
 #err { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: #7a1c0c; }
 </style>
@@ -30,69 +30,74 @@ body { background: var(--studio); overflow: hidden; font: 600 13px/1.4 ui-monosp
 </script>
 <script type="importmap">
 { "imports": {
-  "three": "./lib/build/three.module.js",
-  "three/addons/": "./lib/examples/jsm/"
+  "three": "./lib186/build/three.webgpu.js",
+  "three/webgpu": "./lib186/build/three.webgpu.js",
+  "three/tsl": "./lib186/build/three.tsl.js",
+  "three/addons/": "./lib186/examples/jsm/"
 } }
 </script>
 <script type="module">
 import * as THREE from 'three';
+import { pass, mrt, output, normalView, materialMetalness, roughness, sample, packNormalToRGB, unpackRGBToNormal, vec2, vec3, vec4, velocity,
+  diffuseColor, uniform, float, renderOutput, mix, texture, uv, positionWorld, positionLocal, normalMap, smoothstep, min, max, abs, fract, fwidth,
+  step, clamp, sqrt, cameraViewMatrix, attribute, uniform as uni } from 'three/tsl';
+import { ssr } from 'three/addons/tsl/display/SSRNode.js';
+import { ssgi } from 'three/addons/tsl/display/SSGINode.js';
+import { temporalReproject } from 'three/addons/tsl/display/TemporalReprojectNode.js';
+import { recurrentDenoise } from 'three/addons/tsl/display/RecurrentDenoiseNode.js';
+import { traa } from 'three/addons/tsl/display/TRAANode.js';
+import { sharpen } from 'three/addons/tsl/display/SharpenNode.js';
+import { dof } from 'three/addons/tsl/display/DepthOfFieldNode.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 
 const $ = (s) => document.querySelector(s);
 const bar = (f) => { $('#bar i').style.width = Math.round(100 * f) + '%'; };
+const q = new URLSearchParams(location.search);
 
-// Blender (z arriba) → three (y arriba)
+// Blender (z arriba) → three (y arriba). El aparato mide unos 15 cm; se agranda K veces para usar la escala del estudio de interlex
+const K = 20;
 const B = (x, y, z) => new THREE.Vector3(x, z, -y);
-const W0 = -0.0346, W1 = 0.0346;               // la cancha en x de Blender
-const Y_PAD = -0.03945, Y_ADV = 0.03085;       // centros de las paletas en y de Blender
+const W0 = -0.0346, W1 = 0.0346;
+const Y_PAD = -0.03945, Y_ADV = 0.03085;
 const BALL_R = 0.0026, PAD_T = 0.0024;
 const LID_TRAVEL = 0.058, MOD_TRAVEL = 0.0185;
-const STUDIO = new THREE.Color(0xe4ded3);   // el mismo tono que el piso iluminado: no se ve el horizonte
 
-// ---------- escena
-const canvas = $('#view');
-let renderer;
-try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); }
-catch (e) { window.__showError('este navegador no tiene gráficos 3D (WebGL) activados.'); throw e; }
-renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.95;
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// ---------- motor (WebGPU; si no hay, el mismo motor sobre WebGL, sin la cadena de imagen)
+const pAdaptador = navigator.gpu ? navigator.gpu.requestAdapter().catch(() => null) : Promise.resolve(null);
+const hayGPU = !!(await pAdaptador);
+const NIVEL = q.has('nivel') ? +q.get('nivel') : 2;
+const ren = new THREE.WebGPURenderer({ canvas: $('#view'), antialias: !(hayGPU && NIVEL >= 1), powerPreference: 'high-performance', requiredLimits: hayGPU ? { maxColorAttachmentBytesPerSample: 64 } : undefined });
+const canvas = ren.domElement;
+ren.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
+await ren.init();
+const LIVIANA = ren.backend.isWebGLBackend === true;
+bar(0.05);
+
+const EMB = document.getElementById('estudio-datos') ? JSON.parse(document.getElementById('estudio-datos').textContent) : null;
+const archivo = async (n) => EMB ? new Blob([Uint8Array.from(atob(EMB[n]), (c) => c.charCodeAt(0))], { type: n.endsWith('.webp') ? 'image/webp' : 'application/octet-stream' }) : (await fetch('estudio/' + n)).blob();
+const pEstudio = Promise.all([archivo('estudio.json').then((b) => b.text()).then(JSON.parse), archivo('entorno.bin').then((b) => b.arrayBuffer())]);
+const foto = async (n, color) => { const u = URL.createObjectURL(await archivo(n)), t = await new THREE.TextureLoader().loadAsync(u); URL.revokeObjectURL(u);
+  t.colorSpace = color ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.anisotropy = 8; t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping; return t; };
+const pPiso = Promise.all(['piso-base.webp', 'piso-metal.webp', 'piso-aspereza.webp', 'piso-normal.webp', 'piso-espejo.webp'].map((n, i) => foto(n, i === 0 || i === 4)));
+
 const scene = new THREE.Scene();
-scene.background = STUDIO.clone();
-scene.fog = new THREE.Fog(scene.background, 0.3, 0.75);
-const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
-scene.environmentIntensity = 0.75;
-const camera = new THREE.PerspectiveCamera(30, 1, 0.005, 4);
+scene.background = new THREE.Color(0);
+const mundo = new THREE.Group(); mundo.scale.setScalar(K); scene.add(mundo);
+const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 600);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true; controls.dampingFactor = 0.08;
-controls.minDistance = 0.11; controls.maxDistance = 0.5;
+controls.minDistance = 0.11 * K; controls.maxDistance = 0.5 * K;
 controls.maxPolarAngle = THREE.MathUtils.degToRad(78);
 controls.enablePan = false;
-
-const key = new THREE.DirectionalLight(0xfff4e6, 2.6); key.position.copy(B(0.16, -0.3, 0.42)); key.castShadow = true;
-key.shadow.mapSize.set(2048, 2048); Object.assign(key.shadow.camera, { left: -0.14, right: 0.14, top: 0.14, bottom: -0.14, near: 0.1, far: 1.2 });
-key.shadow.bias = -0.00015; key.shadow.normalBias = 0.0004; key.shadow.radius = 5; scene.add(key);
-const fill = new THREE.DirectionalLight(0xe9eeff, 0.3); fill.position.copy(B(0.35, 0.15, 0.25)); scene.add(fill);
-scene.add(new THREE.HemisphereLight(0xfffaf0, 0xc9bb9c, 0.35));   // rebote del estudio: los costados no quedan negros
-const rim = new THREE.DirectionalLight(0xffffff, 1.1); rim.position.copy(B(-0.3, 0.35, 0.18)); scene.add(rim);   // contraluz: marca los bordes
-// la luz de las neuronas: una lámina en el borde superior de la cancha, desde la botonera hasta el arco del adversario, mirando hacia abajo
-RectAreaLightUniformsLib.init();
-const sheet = new THREE.RectAreaLight(0xf2ffe8, 10, 0.106, 0.0034);
-sheet.position.copy(B(W0 + 0.0011, -0.0153, 0.005)); sheet.lookAt(B(1, -0.0153, 0.005)); scene.add(sheet);
-
-const VIEW = { pos: B(0.2, -0.17, 0.2), target: B(0.0, -0.004, -0.002) };
+const VIEW = { pos: B(0.2, -0.17, 0.2).multiplyScalar(K), target: B(0.0, -0.004, -0.002).multiplyScalar(K) };
 camera.position.copy(VIEW.pos); controls.target.copy(VIEW.target); camera.lookAt(VIEW.target);
 let viewAnim = null;
 function resetView() { viewAnim = { from: { pos: camera.position.clone(), target: controls.target.clone() }, t: 0 }; }
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
-  renderer.setSize(w, h, false); camera.aspect = w / h;
-  camera.fov = w / h < 0.8 ? 46 : 30;            // en pantallas angostas, que entre entero
+  ren.setSize(w, h, false); camera.aspect = w / h;
+  camera.fov = w / h < 0.8 ? 46 : 30;
   camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize); resize();
@@ -173,167 +178,213 @@ const [srcCultivo, srcSim, gltf, srcTrained] = await Promise.all([
 ]);
 const trained = srcTrained ? JSON.parse(srcTrained) : null;   // el cultivo entrenado en Kaggle, si está
 bar(1); $('#bar').hidden = true;
-const root = gltf.scene; scene.add(root);
+
+const root = gltf.scene; mundo.add(root);
 const san = (n) => THREE.PropertyBinding.sanitizeNodeName(n);
 const get = (n) => root.getObjectByName(san(n));
 root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-const floor = get('piso');
-if (floor) floor.traverse((x) => { if (x.isMesh) { x.castShadow = false; x.material.envMapIntensity = 0.6; } });
-// piso de estudio infinito: sigue al piso horneado y se funde con el fondo, sin horizonte
-if (floor) floor.traverse((x) => {
-  if (!x.isMesh || x.userData.ext) return;
-  const m = x.material.clone(); m.aoMap = null; m.needsUpdate = true;
-  const big = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), m); big.rotation.x = -Math.PI / 2;
-  const wp = new THREE.Vector3(); x.getWorldPosition(wp); big.position.set(wp.x, wp.y - 0.0002, wp.z);
-  big.receiveShadow = true; big.userData.ext = true; scene.add(big);
-});
-// plásticos: los módulos de color con laca brillante, el crema satinado
-root.traverse((o) => {
-  if (!o.isMesh || !o.material || !o.material.name) return;
-  const n = o.material.name, m = o.material;
-  if (/tomate|cobalto/.test(n) && 'clearcoat' in m) { m.clearcoat = 0.6; m.clearcoatRoughness = 0.18; m.roughness = 0.38; }
-  if (/crema/.test(n)) { m.roughness = 0.42; m.envMapIntensity = 1.1; }
-  if (/acero/.test(n)) { m.metalness = 1; m.roughness = 0.28; m.envMapIntensity = 1.4; }
-});
+// el piso del modelo se reemplaza por el piso infinito del estudio
+const floor = get('piso'); let PISO_Y = 0;
+if (floor) { const b = new THREE.Box3().setFromObject(floor); PISO_Y = b.max.y; floor.visible = false; }
+const centroAparato = new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());
 
-// ---------- luz horneada en Blender (estudio completo: luz directa y rebotes) sobre cada pieza
-async function cargarLuces() {
-  let meta, blobDe;
-  const el = document.getElementById('luces-datos');
-  if (el) {
-    const d = JSON.parse(el.textContent); meta = d.meta;
-    blobDe = async (f) => new Blob([Uint8Array.from(atob(d.files[f]), (c) => c.charCodeAt(0))], { type: 'image/jpeg' });
-  } else {
-    const r = await fetch('luces/luces.json'); if (!r.ok) return null; meta = await r.json();
-    blobDe = async (f) => (await fetch('luces/' + f)).blob();
-  }
-  const tex = {};
-  await Promise.all(Object.entries(meta.mapas).map(async ([name, f]) => {
-    const bmp = await createImageBitmap(await blobDe(f));   // sin dar vuelta: igual que las coordenadas del glTF
-    const t = new THREE.Texture(bmp); t.colorSpace = THREE.SRGBColorSpace; t.flipY = false; t.generateMipmaps = true; t.needsUpdate = true;
-    t.anisotropy = renderer.capabilities.getMaxAnisotropy(); tex[name] = { t, bmp };
-  }));
-  return { escala: meta.escala, tex };
-}
-const luces = await cargarLuces().catch(() => null);
-if (luces) {
-  const PI = Math.PI;
-  for (const [name, { t, bmp }] of Object.entries(luces.tex)) {
-    const o = get(name); if (!o) continue;
-    o.traverse((x) => {
-      if (!x.isMesh) return;
-      const old = x.material, brillo = /tomate|cobalto/.test(old.name) ? 0.1 : /acero/.test(old.name) ? 0.35 : 0.035;
-      x.material = new THREE.MeshBasicMaterial({ color: old.color.clone(), map: old.map || null, lightMap: t, lightMapIntensity: luces.escala * PI,
-        envMap: scene.environment, combine: THREE.AddOperation, reflectivity: brillo });
-      x.material.name = old.name; x.castShadow = false; x.receiveShadow = false;
-    });
-    if (name === 'piso') {   // el piso infinito toma el tono del borde del piso horneado
-      const c = document.createElement('canvas'); c.width = c.height = 8; const g = c.getContext('2d'); g.drawImage(bmp, 0, 0, 8, 8);
-      const px = g.getImageData(0, 0, 1, 1).data, lin = (v) => Math.pow(v / 255, 2.2) * luces.escala;
-      const fm = get('piso').getObjectByProperty('isMesh', true).material, col = fm.color.clone().multiply(new THREE.Color(lin(px[0]), lin(px[1]), lin(px[2])));
-      scene.traverse((x) => { if (x.userData.ext) x.material = new THREE.MeshBasicMaterial({ color: col }); });
-      // fondo: una esfera del mismo color y con el mismo procesado que el piso, así piso y fondo se funden
-      const domo = new THREE.Mesh(new THREE.SphereGeometry(2.5, 48, 24), new THREE.MeshBasicMaterial({ color: col, side: THREE.BackSide, fog: false }));
-      scene.add(domo); scene.fog = null;
-      scene.traverse((x) => { if (x.userData.ext) x.material.fog = false; });
+// ---------- la luz: el HDRI del estudio, y sus lámparas como luces con sombra (como interlex)
+const [J, entornoBin] = await pEstudio;
+const luces = [];
+{
+  const [w, h] = J.entorno, L = Float32Array.from(new Uint16Array(entornoBin), THREE.DataUtils.fromHalfFloat);
+  const lum = (k) => 0.2126 * L[k] + 0.7152 * L[k + 1] + 0.0722 * L[k + 2];
+  let suma = 0, peso = 0;
+  for (let y = h >> 1; y < h; y++) { const el = ((y + 0.5) / h - 0.5) * Math.PI, dw = Math.cos(el); for (let x = 0; x < w; x++) { suma += lum((y * w + x) * 3) * dw; peso += dw; } }
+  const TOPE = 2.5 * suma / peso, pts = [];
+  for (let y = h >> 1; y < h; y++) {
+    const el = ((y + 0.5) / h - 0.5) * Math.PI, dw = Math.cos(el) * (Math.PI / h) * (2 * Math.PI / w);
+    for (let x = 0; x < w; x++) {
+      const k = (y * w + x) * 3, l = lum(k); if (l <= TOPE) continue;
+      const f = (l - TOPE) / l, fi = ((x + 0.5) / w - 0.5) * 2 * Math.PI;
+      pts.push({ d: [Math.cos(el) * Math.cos(fi), Math.sin(el), Math.cos(el) * Math.sin(fi)], e: [L[k] * f * dw, L[k + 1] * f * dw, L[k + 2] * f * dw] });
+      L[k] *= 1 - f; L[k + 1] *= 1 - f; L[k + 2] *= 1 - f;
     }
   }
-  // lo horneado ya trae sombras y luz: las luces en vivo quedan solo para las piezas chicas
-  key.castShadow = false; key.intensity = 1.2; fill.intensity = 0.2; rim.intensity = 0.4;
+  if (pts.length) {
+    const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    const fuerte = pts.reduce((a, b) => (b.e[1] > a.e[1] ? b : a)), lejos = pts.reduce((a, b) => (dot(b.d, fuerte.d) < dot(a.d, fuerte.d) ? b : a));
+    let c = [fuerte.d.slice(), lejos.d.slice()], g;
+    for (let it = 0; it < 8; it++) {
+      g = [{ d: [0, 0, 0], e: [0, 0, 0] }, { d: [0, 0, 0], e: [0, 0, 0] }];
+      for (const p of pts) { const i = dot(p.d, c[0]) >= dot(p.d, c[1]) ? 0 : 1; for (let k = 0; k < 3; k++) { g[i].d[k] += p.d[k] * p.e[1]; g[i].e[k] += p.e[k]; } }
+      c = g.map((x, i) => { const n = Math.hypot(...x.d); return n > 0 ? x.d.map((v) => v / n) : c[i]; });
+    }
+    if (dot(c[0], c[1]) > 0.9) { for (let k = 0; k < 3; k++) { g[0].e[k] += g[1].e[k]; g[0].d[k] += g[1].d[k]; } const n = Math.hypot(...g[0].d); c = [g[0].d.map((v) => v / n)]; g = [g[0]]; }
+    const total = g.reduce((s, x) => s + x.e[1], 0);
+    g.forEach((x, i) => { if (x.e[1] > 0.06 * total) luces.push({ dir: c[i], E: x.e }); });
+  }
+  const d = new Uint16Array(w * h * 4);
+  for (let i = 0, n = w * h; i < n; i++) { for (let k = 0; k < 3; k++) d[i * 4 + k] = THREE.DataUtils.toHalfFloat(L[i * 3 + k]); d[i * 4 + 3] = 0x3c00; }
+  const t = new THREE.DataTexture(d, w, h, THREE.RGBAFormat, THREE.HalfFloatType);
+  t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.LinearSRGBColorSpace; t.minFilter = t.magFilter = THREE.LinearFilter; t.needsUpdate = true;
+  scene.environment = t;
+}
+ren.toneMapping = THREE.AgXToneMapping;
+ren.toneMappingExposure = Math.pow(2, J.vista.exposicion);
+ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.VSMShadowMap;
+const ALTO = 3, cx = centroAparato.x, cz = centroAparato.z;
+luces.forEach((l, i) => {
+  const fuerza = Math.max(...l.E), luz = new THREE.DirectionalLight(new THREE.Color(l.E[0] / fuerza, l.E[1] / fuerza, l.E[2] / fuerza), fuerza);
+  luz.position.set(cx + l.dir[0] * 12, PISO_Y + l.dir[1] * 12, cz + l.dir[2] * 12); luz.target.position.set(cx, PISO_Y, cz);
+  luz.castShadow = true; const s = luz.shadow, c = s.camera, R = ALTO * 1.1;
+  c.left = -R; c.right = R; c.top = R; c.bottom = -R; c.near = 12 - R * 1.6; c.far = 12 + R * 1.6;
+  s.mapSize.set(i === 0 ? 2048 : 1024, i === 0 ? 2048 : 1024); s.radius = 5; s.blurSamples = 16; s.bias = -0.0005;
+  scene.add(luz, luz.target);
+});
+
+// ---------- el piso infinito del estudio (ciclorama: el piso sube en curva y se hace pared, sin horizonte)
+{
+  const [map, metalnessMap, roughnessMap, nMap, specularColorMap] = await pPiso;
+  const R = 70, CURVA = 30, PARED = 90, perfil = [new THREE.Vector2(0.001, 0), new THREE.Vector2(R - CURVA, 0)];
+  for (let i = 1; i <= 28; i++) { const a = i / 28 * Math.PI / 2; perfil.push(new THREE.Vector2(R - CURVA + Math.sin(a) * CURVA, CURVA - Math.cos(a) * CURVA)); }
+  perfil.push(new THREE.Vector2(R, PARED));
+  const g = new THREE.LatheGeometry(perfil, 96); g.rotateX(Math.PI / 2);
+  const mp = new THREE.MeshPhysicalNodeMaterial({ side: THREE.DoubleSide, metalness: 1, roughness: 1, ior: 2.333 });
+  const lado = J.ladoPiso, uvS = vec2(positionWorld.x.sub(cx).div(lado).add(0.5), float(cz).sub(positionWorld.z).div(lado).add(0.5));
+  const lejosF = smoothstep(lado * 0.6, lado * 2.5, positionWorld.xz.sub(vec2(cx, cz)).length()).mul(7);
+  const lee = (t) => texture(t, uvS).bias(lejosF);
+  mp.colorNode = lee(map).rgb;
+  mp.roughnessNode = lee(roughnessMap).g.clamp(0.03, 1);
+  mp.metalnessNode = lee(metalnessMap).b;
+  mp.specularColorNode = lee(specularColorMap).rgb.clamp(0, 1);
+  const relieve = normalMap(lee(nMap)); relieve.normalMapType = THREE.ObjectSpaceNormalMap;
+  mp.normalNode = mix(relieve, normalView, lejosF.div(7)).normalize();
+  const piso = new THREE.Mesh(g, mp);
+  piso.rotation.x = -Math.PI / 2; piso.position.set(cx, PISO_Y, cz); piso.receiveShadow = true;
+  scene.add(piso);
 }
 
-// ---------- placa: tu silicio verde con electrodos grises, y el tejido del cultivo encima
+// ---------- materiales del aparato: plástico, metal y goma de verdad, iluminados por el estudio
+root.traverse((o) => {
+  if (!o.isMesh || !o.material || !o.material.name) return;
+  const n = o.material.name, m0 = o.material;
+  const m = new THREE.MeshPhysicalMaterial({ name: n, color: m0.color, map: m0.map, roughness: m0.roughness, metalness: m0.metalness, normalMap: m0.normalMap, aoMap: m0.aoMap, emissive: m0.emissive, emissiveMap: m0.emissiveMap });
+  if (/tomate|cobalto|lima/.test(n)) { m.clearcoat = 0.8; m.clearcoatRoughness = 0.12; m.roughness = 0.42; }          // plástico laqueado
+  if (/crema|paleta blanca/.test(n)) { m.roughness = 0.5; m.sheen = 0.25; m.sheenRoughness = 0.6; m.sheenColor = new THREE.Color(1, 0.95, 0.85); }   // plástico satinado
+  if (/acero/.test(n)) { m.metalness = 1; m.roughness = 0.24; m.color.setRGB(0.78, 0.78, 0.8); }
+  if (/goma/.test(n)) { m.roughness = 0.82; m.sheen = 0.4; m.sheenRoughness = 0.9; m.sheenColor = new THREE.Color(0.25, 0.25, 0.27); }
+  if (/grafito/.test(n)) { m.metalness = 0.35; m.roughness = 0.45; }
+  if (/difusor/.test(n)) { m.emissive = new THREE.Color(1, 0.98, 0.92); m.emissiveIntensity = 1.2; }
+  o.material = m;
+});
+
+// ---------- placa: tu silicio verde con electrodos de metal, y el tejido del cultivo encima
 const PXA = -34.6, PXB = 34.6, PYA = -69.0, PYB = 37.9;
 function dataTex(w, h, format, data) {
   const t = new THREE.DataTexture(data, w, h, format); t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter; t.needsUpdate = true; return t;
 }
-let fieldTex = dataTex(1, 1, THREE.RedFormat, new Uint8Array(1)), heightTex = dataTex(1, 1, THREE.RedFormat, new Uint8Array(1)), actTex = dataTex(1, 1, THREE.RGBAFormat, new Uint8Array(4));
-const area = new THREE.Vector4(PXA, PXB, PYA, PYB);
-const UV = `vec2 uvOf(vec3 w) { float xm = w.x * 1000.0, ym = -w.z * 1000.0; return vec2((ym - area.z) / (area.w - area.z), (xm - area.x) / (area.y - area.x)); }`;
-const plateMat = new THREE.ShaderMaterial({
-  uniforms: { tField: { value: fieldTex }, tAct: { value: actTex }, area: { value: area } },
-  vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
-  fragmentShader: `
-    uniform sampler2D tField, tAct; uniform vec4 area; varying vec3 vW;
-    ${UV}
-    void main(){
-      float xm = vW.x * 1000.0, ym = -vW.z * 1000.0;
-      vec2 uv = uvOf(vW);
-      // grilla de electrodos: cuadrados de 0,3 mm cada 0,78 mm (como en tu Blender)
-      vec2 g = fract(vec2(xm, ym) / 0.78);
-      vec2 aa = fwidth(vec2(xm, ym) / 0.78) * 0.8;
-      float e = (smoothstep(0.0, aa.x, g.x) - smoothstep(0.385, 0.385 + aa.x, g.x)) * (smoothstep(0.0, aa.y, g.y) - smoothstep(0.385, 0.385 + aa.y, g.y));
-      e = mix(e, 0.385 * 0.385, clamp(max(aa.x, aa.y) * 2.0 - 0.5, 0.0, 1.0));   // de lejos, el promedio (sin muaré)
-      vec3 base = mix(vec3(0.02, 0.121, 0.003), vec3(0.314), clamp(e, 0.0, 1.0));
-      // serigrafía en el chip: la cancha y las zonas SUBE / BAJA
-      float lw = 0.12 + fwidth(ym) * 0.8, mark = 0.0;
-      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym + 45.8))) * step(abs(xm), 34.6));
-      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym - 37.9))) * step(abs(xm), 34.6));
-      float inWin = step(-67.5, ym) * step(ym, -52.5) * step(abs(xm), 33.8);
-      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym + 67.5))) * step(abs(xm), 33.8));
-      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym + 52.5))) * step(abs(xm), 33.8));
-      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(abs(xm) - 33.8))) * step(-67.5, ym) * step(ym, -52.5));
-      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(xm))) * inWin);
-      mark = max(mark, (1.0 - smoothstep(0.0, lw, abs(ym + 4.2))) * step(abs(xm), 34.6) * step(0.5, fract(xm / 2.0)));
-      base = mix(base, vec3(0.85, 0.85, 0.8), mark * 0.75);
-      float fw = texture2D(tField, uv).r;
-      float thin = smoothstep(0.03, 0.12, fw) * (1.0 - smoothstep(0.4, 0.46, fw));   // axones finos entre grupos
-      base = mix(base, vec3(0.36, 0.2, 0.035), thin * 0.6);
-      vec3 col = base + vec3(0.25, 0.85, 1.0) * texture2D(tAct, uv).b * 0.9;          // celeste: electrodo estimulando
-      gl_FragColor = vec4(col, 1.0);
-      #include <tonemapping_fragment>
-      #include <colorspace_fragment>
-    }`,
-});
-const TH = 0.45, HMAX = 0.0011;
-const tissueMat = new THREE.ShaderMaterial({
-  uniforms: { tField: { value: fieldTex }, tHeight: { value: heightTex }, tAct: { value: actTex }, area: { value: area }, th: { value: TH }, hmax: { value: HMAX },
-              light: { value: new THREE.Vector3(-0.5, 0.8, 0.35).normalize() } },
-  vertexShader: `
-    uniform sampler2D tField, tHeight; uniform vec4 area; uniform float th, hmax;
-    varying vec3 vW; varying vec2 vUv; varying float vF;
-    ${UV}
-    void main(){
-      vec4 w = modelMatrix * vec4(position, 1.0);
-      vUv = uvOf(w.xyz);
-      vF = texture2D(tField, vUv).r;
-      float hf = texture2D(tHeight, vUv).r;                       // altura suavizada: lomos redondeados, no picos
-      w.y += sqrt(clamp((hf - th * 0.8) / (1.0 - th * 0.8), 0.0, 1.0)) * hmax;   // lo fuerte crece más alto
-      vW = w.xyz;
-      gl_Position = projectionMatrix * viewMatrix * w;
-    }`,
-  fragmentShader: `
-    uniform sampler2D tAct; uniform float th; uniform vec3 light;
-    varying vec3 vW; varying vec2 vUv; varying float vF;
-    void main(){
-      if (vF < th) discard;
-      vec3 n = normalize(cross(dFdx(vW), dFdy(vW))); if (n.y < 0.0) n = -n;
-      float lit = 0.32 + 0.68 * max(dot(n, light), 0.0);
-      float core = smoothstep(th + 0.1, 1.0, vF);
-      vec3 col = mix(vec3(0.10, 0.045, 0.004), vec3(0.34, 0.19, 0.035), core) * lit;
-      vec4 a = texture2D(tAct, vUv);
-      col = mix(col, vec3(0.42, 0.18, 0.95) * (0.6 + 0.6 * lit), clamp(a.g * 1.2, 0.0, 0.85));   // siente: violeta
-      col = mix(col, vec3(1.0, 0.45, 0.05) * (0.8 + 0.5 * lit), clamp(a.r * 1.4, 0.0, 0.95));    // emite: naranja
-      gl_FragColor = vec4(col, 1.0);
-      #include <tonemapping_fragment>
-      #include <colorspace_fragment>
-    }`,
-});
+const TEX = { tField: dataTex(1, 1, THREE.RedFormat, new Uint8Array(1)), tHeight: dataTex(1, 1, THREE.RedFormat, new Uint8Array(1)), tAct: dataTex(1, 1, THREE.RGBAFormat, new Uint8Array(4)) };
+const NODOS = { tField: [], tHeight: [], tAct: [] };
+const lee = (k, u, nivel) => { const n = nivel === undefined ? texture(TEX[k], u) : texture(TEX[k], u, nivel); NODOS[k].push(n); return n; };
+function setTex(k, t) { TEX[k] = t; for (const n of NODOS[k]) n.value = t; }
+
+const plateMat = new THREE.MeshPhysicalNodeMaterial({ roughness: 0.3, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.08 });
 {
-  const wx = (PXB - PXA) / 1000, wz = (PYB - PYA) / 1000;
-  const g = new THREE.PlaneGeometry(wx, wz, Math.round(wx / 0.00025), Math.round(wz / 0.00025)); g.rotateX(-Math.PI / 2);
-  const tissue = new THREE.Mesh(g, tissueMat);
-  tissue.position.copy(B((PXA + PXB) / 2000, (PYA + PYB) / 2000, 0.00264)); tissue.renderOrder = 1; scene.add(tissue);
+  const pM = positionWorld.div(K), xm = pM.x.mul(1000), ym = pM.z.negate().mul(1000);
+  const tuv = vec2(ym.sub(PYA).div(PYB - PYA), xm.sub(PXA).div(PXB - PXA));
+  const gp = vec2(xm, ym).div(0.78), g = fract(gp), aa = fwidth(gp).mul(0.8);
+  const banda = (v, a) => smoothstep(0, a, v).sub(smoothstep(0.385, a.add(0.385), v));
+  let e = banda(g.x, aa.x).mul(banda(g.y, aa.y));
+  e = mix(e, float(0.385 * 0.385), clamp(max(aa.x, aa.y).mul(2).sub(0.5), 0, 1)).clamp(0, 1);
+  const lw = fwidth(ym).mul(0.8).add(0.12), linea = (d) => float(1).sub(smoothstep(0, lw, abs(d)));
+  const enX = (a) => step(abs(xm), a), entre = step(-67.5, ym).mul(step(ym, -52.5));
+  let mark = linea(ym.add(45.8)).mul(enX(34.6));
+  mark = max(mark, linea(ym.sub(37.9)).mul(enX(34.6)));
+  mark = max(mark, linea(ym.add(67.5)).mul(enX(33.8)));
+  mark = max(mark, linea(ym.add(52.5)).mul(enX(33.8)));
+  mark = max(mark, linea(abs(xm).sub(33.8)).mul(entre));
+  mark = max(mark, linea(xm).mul(entre).mul(enX(33.8)));
+  mark = max(mark, linea(ym.add(4.2)).mul(enX(34.6)).mul(step(0.5, fract(xm.div(2)))));
+  let base = mix(vec3(0.02, 0.121, 0.003), vec3(0.55, 0.55, 0.56), e);
+  base = mix(base, vec3(0.85, 0.85, 0.8), mark.mul(0.75));
+    plateMat.colorNode = base;
+  plateMat.metalnessNode = e.mul(0.9);
+  plateMat.roughnessNode = mix(float(0.32), float(0.22), e);
+  plateMat.emissiveNode = vec3(0.25, 0.85, 1.0).mul(lee('tAct', tuv).b).mul(1.4);
+}
+const WX = (PXB - PXA) / 1000, WZ = (PYB - PYA) / 1000, TOPE_PLACA = 0.00262;
+{
   const PZ0 = 0.00123, PZ1 = 0.00262;
   const side = new THREE.MeshStandardMaterial({ color: 0x505050, roughness: 0.5 });
-  const plate = new THREE.Mesh(new THREE.BoxGeometry(wx, PZ1 - PZ0, wz), [side, side, plateMat, side, side, side]);
-  plate.position.copy(B((PXA + PXB) / 2000, (PYA + PYB) / 2000, (PZ0 + PZ1) / 2)); plate.receiveShadow = true; scene.add(plate);
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(WX, PZ1 - PZ0, WZ), [side, side, plateMat, side, side, side]);
+  plate.position.copy(B((PXA + PXB) / 2000, (PYA + PYB) / 2000, (PZ0 + PZ1) / 2)); plate.receiveShadow = true; mundo.add(plate);
 }
-function setTex(name, tex) { if (plateMat.uniforms[name]) plateMat.uniforms[name].value = tex; if (tissueMat.uniforms[name]) tissueMat.uniforms[name].value = tex; }
+
+
+// ---------- las neuronas en 3D: cada célula con su cuerpo, y sus axones y dendritas como tubos.
+// Cuando una célula dispara se encienden ella y sus prolongaciones (naranja); cuando la estimulan, su cuerpo se pone violeta;
+// cuanto más fuertes sus conexiones, más gruesas sus prolongaciones.
+const crecido = uni(1e9);
+let cellTex = null;
+function armarNeuronas(m) {
+  const N = m.N, mm = 1 / 1000;
+  cellTex = new THREE.DataTexture(new Uint8Array(N * 4), N, 1, THREE.RGBAFormat); cellTex.needsUpdate = true;
+  const celda = (i) => texture(cellTex, vec2(attribute('celda', 'float').add(0.5).div(N), 0.5), 0);
+  const tmp = new THREE.Object3D(), Y = new THREE.Vector3(0, 1, 0), d = new THREE.Vector3();
+  function tubos(arr, r0, r1, color) {
+    const n = arr.length / 6, geo = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
+    const cel = new Float32Array(n), born = new Float32Array(n);
+    const mesh = new THREE.InstancedMesh(geo, null, n);
+    for (let k = 0; k < n; k++) {
+      const q = 6 * k, a = B(arr[q] * mm, arr[q + 1] * mm, TOPE_PLACA + 0.00007), b = B(arr[q + 2] * mm, arr[q + 3] * mm, TOPE_PLACA + 0.00007);
+      d.subVectors(b, a); const L = d.length() || 1e-6;
+      tmp.position.addVectors(a, b).multiplyScalar(0.5); tmp.quaternion.setFromUnitVectors(Y, d.divideScalar(L)); tmp.scale.set(1, L * 1.08, 1); tmp.updateMatrix();
+      mesh.setMatrixAt(k, tmp.matrix); cel[k] = Math.max(0, arr[q + 4]); born[k] = arr[q + 5];
+    }
+    geo.setAttribute('celda', new THREE.InstancedBufferAttribute(cel, 1)); geo.setAttribute('nace', new THREE.InstancedBufferAttribute(born, 1));
+    const c = celda(), vivo = step(attribute('nace', 'float'), crecido);
+    const mat = new THREE.MeshPhysicalNodeMaterial({ color, roughness: 0.38, clearcoat: 0.6, clearcoatRoughness: 0.2, sheen: 0.6, sheenRoughness: 0.35, sheenColor: new THREE.Color(1, 0.92, 0.75) });
+    const r = mix(float(r0), float(r1), c.b).mul(vivo);
+    mat.positionNode = positionLocal.mul(vec3(r, 1, r));
+    mat.emissiveNode = vec3(1.0, 0.42, 0.06).mul(c.r.mul(c.r)).mul(3);
+    mesh.material = mat; mesh.receiveShadow = true; mesh.frustumCulled = false; mundo.add(mesh);
+    return mesh;
+  }
+  tubos(m.ax, 0.000028, 0.00009, new THREE.Color(0.86, 0.78, 0.6));
+  tubos(m.den, 0.00002, 0.00004, new THREE.Color(0.8, 0.7, 0.52));
+  // cuerpos: gotas achatadas, translúcidas
+  {
+    const geo = new THREE.SphereGeometry(1, 18, 12), cel = new Float32Array(N), inh = new Float32Array(N);
+    const mesh = new THREE.InstancedMesh(geo, null, N);
+    for (let i = 0; i < N; i++) {
+      tmp.position.copy(B(m.cel[3 * i] * mm, m.cel[3 * i + 1] * mm, TOPE_PLACA + 0.00012)); tmp.quaternion.identity();
+      const rr = 0.00034 * (0.85 + 0.3 * Math.abs(Math.sin(i * 12.9898) * 43758.5453 % 1)); tmp.scale.set(rr, rr * 0.62, rr * (0.85 + 0.3 * Math.abs(Math.sin(i * 78.233) * 43758.5453 % 1))); tmp.updateMatrix();
+      mesh.setMatrixAt(i, tmp.matrix); cel[i] = i; inh[i] = m.cel[3 * i + 2];
+    }
+    geo.setAttribute('celda', new THREE.InstancedBufferAttribute(cel, 1)); geo.setAttribute('inh', new THREE.InstancedBufferAttribute(inh, 1));
+    const c = celda();
+    const mat = new THREE.MeshPhysicalNodeMaterial({ roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.06, sheen: 1, sheenRoughness: 0.3, sheenColor: new THREE.Color(1, 0.85, 0.6) });
+    mat.colorNode = mix(vec3(0.82, 0.55, 0.26), vec3(0.55, 0.6, 0.7), attribute('inh', 'float'));
+    mat.positionNode = positionLocal.mul(mix(float(0.85), float(1.25), c.b));
+    mat.emissiveNode = vec3(1.0, 0.42, 0.06).mul(c.r).mul(6).add(vec3(0.45, 0.2, 1.0).mul(c.g.mul(c.g)).mul(2.2));
+    mesh.material = mat; mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; mundo.add(mesh);
+  }
+  // botones sinápticos: donde las conexiones son más fuertes
+  if (m.nudos.length) {
+    const n = m.nudos.length / 4, geo = new THREE.SphereGeometry(1, 10, 6), cel = new Float32Array(n), born = new Float32Array(n);
+    const mesh = new THREE.InstancedMesh(geo, null, n);
+    for (let k = 0; k < n; k++) {
+      tmp.position.copy(B(m.nudos[4 * k] * mm, m.nudos[4 * k + 1] * mm, TOPE_PLACA + 0.00008)); tmp.quaternion.identity(); tmp.scale.set(0.00013, 0.00009, 0.00013); tmp.updateMatrix();
+      mesh.setMatrixAt(k, tmp.matrix); cel[k] = m.nudos[4 * k + 2]; born[k] = m.nudos[4 * k + 3];
+    }
+    geo.setAttribute('celda', new THREE.InstancedBufferAttribute(cel, 1)); geo.setAttribute('nace', new THREE.InstancedBufferAttribute(born, 1));
+    const c = celda();
+    const mat = new THREE.MeshPhysicalNodeMaterial({ color: new THREE.Color(0.95, 0.82, 0.55), roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.1 });
+    mat.positionNode = positionLocal.mul(step(attribute('nace', 'float'), crecido));
+    mat.emissiveNode = vec3(1.0, 0.42, 0.06).mul(c.r).mul(4);
+    mesh.material = mat; mesh.castShadow = true; mesh.frustumCulled = false; mundo.add(mesh);
+  }
+}
 
 // vidrio ahumado de la pantalla y paleta lima
 const glass = get('tapa vidrio');
-if (glass) glass.traverse((x) => { if (x.isMesh) { x.castShadow = false; x.material = new THREE.MeshPhysicalMaterial({ color: 0x1d2025, roughness: 0.08, metalness: 0, transparent: true, opacity: 0.3, clearcoat: 0.4, clearcoatRoughness: 0.05, envMapIntensity: 0.35, depthWrite: false }); } });
+if (glass) glass.traverse((x) => { if (x.isMesh) { x.castShadow = false; x.material = new THREE.MeshPhysicalMaterial({ color: 0x1d2025, roughness: 0.06, metalness: 0, transparent: true, opacity: 0.28, clearcoat: 1, clearcoatRoughness: 0.03, depthWrite: false }); } });
 const padNeur = get('paleta neuronas');
 if (padNeur) padNeur.traverse((x) => { if (x.isMesh) { x.material = x.material.clone(); x.material.color.set(0x9bd31a); } });
 
@@ -355,8 +406,8 @@ const leds = ['EST', 'SIL', 'S/F', 'REP'].map((n) => ownMat('led ' + n));
 const slider = get('corredera condicion'); const sliderBase = slider.position.z;
 const LED_STEP = 0.0065;
 const scoreMesh = get('puntaje'), lcdMesh = get('evolucion');
-if (scoreMesh) scoreMesh.traverse((x) => { if (x.isMesh) x.material = new THREE.MeshBasicMaterial({ map: dotTex, toneMapped: false }); });
-if (lcdMesh) lcdMesh.traverse((x) => { if (x.isMesh) x.material = new THREE.MeshBasicMaterial({ map: lcdTex, toneMapped: false }); });
+if (scoreMesh) scoreMesh.traverse((x) => { if (x.isMesh) x.material = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.15, emissive: 0xffffff, emissiveMap: dotTex, emissiveIntensity: 2.2 }); });
+if (lcdMesh) lcdMesh.traverse((x) => { if (x.isMesh) x.material = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 0.3, emissive: 0xffffff, emissiveMap: lcdTex, emissiveIntensity: 1.3 }); });
 
 // ---------- tocar el aparato
 const COND_ORDER = ['estimulo', 'silencio', 'sinfeedback', 'reposo'];
@@ -393,14 +444,15 @@ let S = null, growing = true;
 worker.onmessage = (e) => {
   const m = e.data;
   if (m.type === 'tissue') {
-    const f = dataTex(m.w, m.h, THREE.RedFormat, m.field), h = dataTex(m.w, m.h, THREE.RedFormat, m.height);
-    fieldTex.dispose(); heightTex.dispose(); fieldTex = f; heightTex = h; setTex('tField', f); setTex('tHeight', h);
+    const of = TEX.tField, oh = TEX.tHeight; setTex('tField', dataTex(m.w, m.h, THREE.RedFormat, m.field)); setTex('tHeight', dataTex(m.w, m.h, THREE.RedFormat, m.height)); of.dispose(); oh.dispose();
   } else if (m.type === 'frame') {
     S = m;
-    if (actTex.image.width !== m.aw) { actTex.dispose(); actTex = dataTex(m.aw, m.ah, THREE.RGBAFormat, m.act); setTex('tAct', actTex); }
-    else { actTex.image.data = m.act; actTex.needsUpdate = true; }
+    const at = TEX.tAct; if (at.image.width !== m.aw) { setTex('tAct', dataTex(m.aw, m.ah, THREE.RGBAFormat, m.act)); at.dispose(); }
+    else { at.image.data = m.act; at.needsUpdate = true; }
+    if (cellTex && m.cells && m.cells.length === cellTex.image.data.length) { cellTex.image.data = m.cells; cellTex.needsUpdate = true; }
   } else if (m.type === 'lcd') drawLcd(m.series);
-  else if (m.type === 'grow' && m.done) growing = false;
+  else if (m.type === 'geom') armarNeuronas(m);
+  else if (m.type === 'grow') { if (m.step != null) crecido.value = m.step; if (m.done) { growing = false; crecido.value = 1e9; } }
 };
 function setCond(c) {
   cond = c; worker.postMessage({ type: 'cond', cond: c });
@@ -411,6 +463,49 @@ function setCond(c) {
 setCond('estimulo');
 worker.postMessage({ type: 'seed', seed: trained ? trained.seed : 1, trained });
 drawScore(0, 0); drawLcd([]);
+
+
+// ---------- la cadena de imagen de interlex: luz indirecta (SSGI), reflejos (SSR), temporal, limpieza, AgX, TRAA, enfoque
+const U = { focoDistancia: uniform(5), focoZona: uniform(2.2), focoCuanto: uniform(3), nitidez: uniform(0.48) };
+let tubo = null;
+function armarCadena() {
+  tubo = new THREE.RenderPipeline(ren);
+  const pasada = pass(scene, camera, { samples: 0 });
+  pasada.setMRT(mrt({ output, diffuseColor: vec4(diffuseColor.rgb, materialMetalness), normal: vec4(packNormalToRGB(normalView).rgb, roughness), velocity }));
+  const color = pasada.getTextureNode('output'), normalT = pasada.getTextureNode('normal'), hondo = pasada.getTextureNode('depth'),
+    veloz = pasada.getTextureNode('velocity'), difuso = pasada.getTextureNode('diffuseColor');
+  pasada.getTexture('normal').type = THREE.UnsignedByteType;
+  pasada.getTexture('diffuseColor').type = THREE.UnsignedByteType;
+  const normal = sample((u) => unpackRGBToNormal(normalT.sample(u).rgb));
+  const metalAspereza = sample((u) => vec2(difuso.sample(u).a, normalT.sample(u).a));
+  const gi = ssgi(color, hondo, normal, camera);
+  gi.sliceCount.value = 2; gi.stepCount.value = 8;
+  const giTemporal = temporalReproject(gi, hondo, normalT, veloz, camera, { mode: 'diffuse', accumulate: false });
+  const giLimpio = recurrentDenoise(giTemporal, camera, { depth: hondo, normal: normalT, raw: gi, mode: 'diffuse', accumulate: true });
+  giLimpio.alphaSource = 'ao'; giTemporal.setHistoryTexture(giLimpio);
+  let reflejo = vec3(0);
+  if (NIVEL >= 2) {
+    const r = ssr(color, hondo, normal, { stochastic: true, diffuseNode: difuso, metalnessNode: difuso.a, roughnessNode: normalT.a, environmentNode: scene.environment, envImportanceSampling: false, binaryRefine: false });
+    r.quality.value = 0.25; r.mirrorBias.value = 0.5; r.maxDistance.value = ALTO * 1.5;
+    r.intensity.value = 1; r.thickness.value = 0.06; r.maxLuminance.value = 35; r.screenEdgeFade.value = 0.2; r.environmentIntensity.value = 1;
+    const rTemporal = temporalReproject(r, hondo, normalT, veloz, camera, { mode: 'specular', accumulate: false });
+    rTemporal.maxFrames.value = 16; rTemporal.clampIntensity.value = 0.25; rTemporal.flickerSuppression.value = 1;
+    const rLimpio = recurrentDenoise(rTemporal, camera, { depth: hondo, normal: normalT, raw: r, metalRoughness: metalAspereza, mode: 'specular', accumulate: true });
+    rLimpio.alphaSource = 'raylength';
+    rLimpio.lumaPhi.value = 0.75; rLimpio.depthPhi.value = 20; rLimpio.normalPhi.value = 0.3; rLimpio.roughnessPhi.value = 100;
+    rLimpio.radius.value = 1.5; rLimpio.alphaPhi.value = 5; rLimpio.strength.value = 0.725; rLimpio.adapt.value = 0.5;
+    rLimpio.smoothDisocclusions.value = true; rLimpio.flickerSuppression.value = 1; rLimpio.adaptiveTrust.value = 1;
+    r.setHistory(rLimpio, veloz); rTemporal.setHistoryTexture(rLimpio);
+    reflejo = rLimpio.rgb;
+  }
+  const lit = color.rgb.mul(gi.getAONode()).add(difuso.rgb.mul(giLimpio.rgb)).add(reflejo);
+  const enFoco = dof(vec4(lit, 1), pasada.getViewZNode(), U.focoDistancia, U.focoZona, U.focoCuanto);
+  const final = renderOutput(vec4(enFoco.rgb, 1), THREE.AgXToneMapping, THREE.SRGBColorSpace);
+  tubo.outputNode = sharpen(traa(vec4(final.rgb, 1), hondo, veloz, camera), U.nitidez);
+  tubo.outputColorTransform = false;
+}
+let conCadena = false;
+if (hayGPU && !LIVIANA && NIVEL >= 1) { try { armarCadena(); conCadena = true; } catch (e) { console.warn('cadena', e); } }
 
 // ---------- cuadro a cuadro: solo dibuja lo que manda el cultivo
 let last = performance.now(), rateMaxU = 8, rateMaxD = 8;
@@ -439,10 +534,11 @@ function frame(now) {
     if (viewAnim.t >= 1) viewAnim = null;
   }
   controls.update();
-  renderer.render(scene, camera);
+  U.focoDistancia.value = camera.position.distanceTo(controls.target);
+  if (conCadena) tubo.render(); else ren.render(scene, camera);
   requestAnimationFrame(frame);
 }
 window.__started = true;
-window.__pb = { camera, controls, scene, get, setLid: (v) => { lidOpen = v; }, setMod: (v) => { modOpen = v; }, state: () => S, growing: () => growing };
+window.__pb = { ren, conCadena: () => conCadena, camera, controls, scene, get, setLid: (v) => { lidOpen = v; }, setMod: (v) => { modOpen = v; }, state: () => S, growing: () => growing };
 requestAnimationFrame(frame);
 </script>

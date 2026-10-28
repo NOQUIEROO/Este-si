@@ -150,14 +150,60 @@ function paintActivity() {
   return out;
 }
 
+
+// ---------- las neuronas en 3D: cuerpos y prolongaciones (axones y dendritas) como tramos de tubo
+let cellBuf = null, cellSt = null;
+function tramos(sg, cada) {
+  // une los tramitos de cada prolongación en cadenas y las corta en piezas de `cada` tramitos
+  const n = sg.x0.length, key = (x, y) => Math.round(x * 1e4) + ',' + Math.round(y * 1e4);
+  const inicio = new Map();
+  for (let k = 0; k < n; k++) { const q = key(sg.x0[k], sg.y0[k]) + ':' + (sg.cell ? sg.cell[k] : 0); if (!inicio.has(q)) inicio.set(q, k); }
+  const usado = new Uint8Array(n), out = [];
+  const tieneAntes = new Uint8Array(n);
+  for (let k = 0; k < n; k++) { const j = inicio.get(key(sg.x1[k], sg.y1[k]) + ':' + (sg.cell ? sg.cell[k] : 0)); if (j !== undefined && j !== k) tieneAntes[j] = 1; }
+  const correr = (k0) => {
+    let k = k0, c = 0, x0 = sg.x0[k], y0 = sg.y0[k], b0 = sg.born[k];
+    while (k !== undefined && !usado[k]) {
+      usado[k] = 1; c++;
+      const sig = inicio.get(key(sg.x1[k], sg.y1[k]) + ':' + (sg.cell ? sg.cell[k] : 0));
+      if (c >= cada || sig === undefined || usado[sig]) { out.push(x0, y0, sg.x1[k], sg.y1[k], sg.cell ? sg.cell[k] : -1, b0); x0 = sg.x1[k]; y0 = sg.y1[k]; c = 0; if (sig !== undefined) b0 = sg.born[sig]; }
+      k = sig;
+    }
+  };
+  for (let k = 0; k < n; k++) if (!tieneAntes[k] && !usado[k]) correr(k);
+  for (let k = 0; k < n; k++) if (!usado[k]) correr(k);
+  return Float32Array.from(out);
+}
+function sendGeom() {
+  const ax = tramos(cul.seg, 4), dd = cul.den, den = tramos(dd, 3);
+  const cel = new Float32Array(cul.N * 3);
+  for (let i = 0; i < cul.N; i++) { cel[3 * i] = cul.cx[i]; cel[3 * i + 1] = cul.cy[i]; cel[3 * i + 2] = cul.inh[i] ? 1 : 0; }
+  const sy = cul.syn, W = cul.W || sy.w, ws = Array.from(W).sort((a, b) => a - b), wq = ws[Math.floor(ws.length * 0.985)], kn = [];
+  for (let s = 0; s < sy.pre.length; s++) if (!cul.inh[sy.pre[s]] && W[s] >= wq) kn.push(sy.x[s], sy.y[s], sy.pre[s], sy.born[s]);
+  const nudos = Float32Array.from(kn);
+  postMessage({ type: 'geom', N: cul.N, total: cul.growth.total, cel, ax, den, nudos }, [cel.buffer, ax.buffer, den.buffer, nudos.buffer]);
+  cellBuf = new Uint8Array(cul.N * 4); cellSt = cellStrengths().st;
+}
+function cellState() {
+  const t = cul.t, out = new Uint8Array(cul.N * 4);
+  for (let i = 0; i < cul.N; i++) {
+    const since = t - cul.lastSpike[i];
+    out[4 * i] = since <= 120 ? (1 - since / 120) * 255 : 0;
+    out[4 * i + 1] = Math.max(0, Math.min(1, (cul.v[i] + 64) / 14)) * 255;
+    out[4 * i + 2] = cellSt ? cellSt[i] * 255 : 0;
+    out[4 * i + 3] = 255;
+  }
+  return out;
+}
+
 // ---------- ciclo
 function sendFrame(now) {
-  const act = paintActivity();
+  const act = paintActivity(), cells = cellState();
   postMessage({
     type: 'frame', t: cul.t, phase: cul.phase, ball: { x: cul.ball.x, y: cul.ball.y }, paddle: cul.paddle, adv: cul.adv,
     rateUp: cul.rateUp, rateDown: cul.rateDown, goals: cul.goals, misses: cul.totalMisses, hits: cul.totalHits,
-    aw: AW, ah: AH, act,
-  }, [act.buffer]);
+    aw: AW, ah: AH, act, cells,
+  }, [act.buffer, cells.buffer]);
   const m = Math.floor(cul.t / 60000);
   if (m !== lastMin) {
     lastMin = m; const series = [];
@@ -169,9 +215,9 @@ function loop() {
   const now = performance.now();
   if (state === 'replay') {
     const k = Math.min(1, (now - replayStart) / GROW_REPLAY_MS);
-    if (now - lastReplayPaint > 400 || k >= 1) {
-      lastReplayPaint = now; paintTissue(Math.floor(cul.growth.total * k));
-      postMessage({ type: 'grow', day: Math.max(1, Math.ceil(cul.growth.total * k / P.stepsPerDay)), done: k >= 1 });
+    if (now - lastReplayPaint > 50 || k >= 1) {
+      lastReplayPaint = now;
+      postMessage({ type: 'grow', day: Math.max(1, Math.ceil(cul.growth.total * k / P.stepsPerDay)), step: Math.floor(cul.growth.total * k), done: k >= 1 });
     }
     if (k >= 1) { state = 'play'; cul.setCondition(cond); wallBase = performance.now(); simBase = cul.t; lastTissue = wallBase; }
   } else if (state === 'play') {
@@ -179,7 +225,7 @@ function loop() {
     while (cul.t < target && performance.now() - now < 10) { cul.step(); cul.spikeLog.length = 0; }
     if (target - cul.t > 200) { simBase = cul.t; wallBase = performance.now(); }   // si la máquina no da, se va más lento pero parejo
     if (now - lastPost >= 16) { lastPost = now; sendFrame(now); }
-    if (now - lastTissue > 3000) { lastTissue = now; paintTissue(1e9); }        // el tejido sigue a las conexiones que cambian
+    if (now - lastTissue > 3000) { lastTissue = now; cellSt = cellStrengths().st; }        // el tejido sigue a las conexiones que cambian
   }
   setTimeout(loop, 4);
 }
@@ -200,6 +246,7 @@ function sembrar(seed, trained) {
     const W = new Float32Array(u8.buffer);
     if (W.length === cul.W.length) cul.W.set(W); else postMessage({ type: 'aviso', msg: 'los pesos entrenados no corresponden a este cultivo' });
   }
+  sendGeom();
   state = 'replay'; replayStart = performance.now(); lastReplayPaint = -1e9;
 }
 self.onmessage = (e) => {
