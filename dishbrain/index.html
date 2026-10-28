@@ -1,0 +1,763 @@
+<meta charset="utf-8">
+<title>DishBrain en tu navegador</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: banco de laboratorio. Arriba el juego y el plato lado a lado; abajo, los instrumentos de medición en una grilla. */
+:root {
+  --bg: #f5f2f4;
+  --surface: #ffffff;
+  --ink: #1e1820;
+  --muted: #675d6a;
+  --line: #e2dae0;
+  --accent: #b0285e;          /* rojo fenol: el color del medio de cultivo */
+  --accent-soft: #f6dde7;
+  --up: #2f6fd0;
+  --down: #b07a0c;
+  --c-estimulo: #b0285e;
+  --c-silencio: #2f6fd0;
+  --c-sinfeedback: #b07a0c;
+  --c-reposo: #1f9a8a;
+  --good: #1d7a43;
+  /* el microscopio es oscuro en los dos temas, como una imagen de calcio */
+  --scope-bg: #0c0b10;
+  --scope-well: #1a1018;
+  --scope-grid: #2a2230;
+  --scope-cell: #2f4a3c;
+  --scope-glow: #7dffb0;
+  --scope-stim: #ffe08a;
+  --scope-label: #b9aec0;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141016; --surface: #1d181f; --ink: #f1ecf0; --muted: #ab9fac; --line: #342b36;
+    --accent: #e0517f; --accent-soft: #3a1b29;
+    --up: #5486e0; --down: #b0801c;
+    --c-estimulo: #e0517f; --c-silencio: #5486e0; --c-sinfeedback: #b0801c; --c-reposo: #25a291;
+    --good: #4cc27f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141016; --surface: #1d181f; --ink: #f1ecf0; --muted: #ab9fac; --line: #342b36;
+  --accent: #e0517f; --accent-soft: #3a1b29;
+  --up: #5486e0; --down: #b0801c;
+  --c-estimulo: #e0517f; --c-silencio: #5486e0; --c-sinfeedback: #b0801c; --c-reposo: #25a291;
+  --good: #4cc27f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 15px; line-height: 1.5;
+}
+.wrap {
+  max-width: 1180px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px;
+  display: grid; gap: 22px;
+}
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2rem, 5vw, 3.1rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.02; }
+h1 em { font-style: normal; color: var(--accent); }
+h2 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-size: 1.02rem; font-weight: 700; }
+p { margin: 0; }
+.eyebrow, .label {
+  font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+.lede { max-width: 64ch; color: var(--muted); font-size: 1.02rem; }
+header.top { display: grid; gap: 10px; }
+
+/* Controles */
+.controls {
+  display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center;
+  padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+}
+.seg { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px; background: var(--bg); border-radius: 8px; }
+.seg button {
+  font: 600 0.86rem var(--f-body); color: var(--muted); background: transparent;
+  border: 0; border-radius: 6px; padding: 6px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.seg button .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.btn {
+  font: 600 0.86rem var(--f-body); color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn:disabled { opacity: 0.5; cursor: progress; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.spacer { flex: 1 1 auto; }
+.cond-note { flex-basis: 100%; color: var(--muted); font-size: 0.88rem; }
+
+/* Escenario */
+.stage { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 820px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+.panel {
+  margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 14px; display: grid; gap: 10px; min-width: 0; align-content: start;
+}
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+canvas { display: block; width: 100%; max-width: 100%; }
+#pong { aspect-ratio: 4 / 3; border-radius: 6px; }
+#mea { aspect-ratio: 1 / 1; border-radius: 6px; background: var(--scope-bg); }
+.chip {
+  font: 600 0.74rem var(--f-mono); letter-spacing: 0.04em; padding: 3px 8px; border-radius: 999px;
+  background: var(--bg); color: var(--muted); border: 1px solid var(--line); white-space: nowrap;
+}
+.chip[data-phase="predecible"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.chip[data-phase="impredecible"] { background: var(--ink); color: var(--bg); border-color: transparent; }
+.chip[data-phase="silencio"] { background: var(--bg); color: var(--ink); border-style: dashed; }
+figcaption { color: var(--muted); font-size: 0.84rem; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.82rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; background: var(--c); }
+
+/* Mediciones */
+.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 820px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; display: grid; gap: 2px; min-width: 0; }
+.stat b { font: 600 1.55rem var(--f-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.stat small { color: var(--muted); font-size: 0.78rem; }
+
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 820px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+#raster { height: 200px; }
+#curve { height: 240px; }
+
+.prefs { display: grid; gap: 5px; }
+.pref-row { display: grid; grid-template-columns: 9.6em minmax(0, 1fr) 1.4em; gap: 8px; align-items: center; font-size: 0.82rem; }
+.pref-row .name { color: var(--muted); white-space: nowrap; }
+.track { position: relative; height: 14px; background: var(--bg); border-radius: 3px; }
+.track::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--muted); opacity: 0.6; }
+.track .bar { position: absolute; top: 2px; bottom: 2px; border-radius: 2px; }
+.pref-row .ok { color: var(--good); font-weight: 700; text-align: center; }
+.pref-axis { display: grid; grid-template-columns: 9.6em minmax(0, 1fr) 1.4em; gap: 8px; font-size: 0.74rem; color: var(--muted); }
+.pref-axis div { display: flex; justify-content: space-between; }
+
+.chart-wrap { position: relative; }
+.tip {
+  position: absolute; pointer-events: none; background: var(--ink); color: var(--bg);
+  font: 0.78rem var(--f-mono); padding: 6px 8px; border-radius: 6px; white-space: nowrap; transform: translate(-50%, -110%);
+}
+
+/* Experimento */
+.exp { display: grid; gap: 14px; }
+.exp-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.progress { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+.progress div { height: 100%; width: 0; background: var(--accent); transition: width 0.2s; }
+.table-scroll { overflow-x: auto; }
+table.res { width: 100%; border-collapse: collapse; font-size: 0.86rem; min-width: 560px; }
+table.res th, table.res td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+table.res th { font: 600 0.72rem var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.cname { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+.cname i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.pair { display: grid; gap: 3px; min-width: 150px; }
+.hb { display: grid; grid-template-columns: 5.8em minmax(0, 1fr) 3.2em; gap: 6px; align-items: center; font-size: 0.76rem; color: var(--muted); white-space: nowrap; }
+.hb .t { height: 10px; background: var(--bg); border-radius: 2px; }
+.hb .f { height: 100%; border-radius: 2px; }
+.hb .v { font-family: var(--f-mono); color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+.pill { font: 600 0.74rem var(--f-mono); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.pill.up { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+.pill.flat { background: var(--bg); color: var(--muted); }
+
+/* Texto */
+.notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 820px) { .notes { grid-template-columns: minmax(0, 1fr); } }
+.note { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.note p, .note li { color: var(--muted); font-size: 0.9rem; }
+.note ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
+.note strong { color: var(--ink); }
+a { color: var(--accent); }
+.sources { font-size: 0.84rem; color: var(--muted); display: grid; gap: 4px; }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <span class="eyebrow">Simulación · Kagan et al., Neuron 2022</span>
+    <h1>Neuronas en un plato <em>aprendiendo a jugar Pong</em></h1>
+    <p class="lede">Un cultivo de 176 neuronas simuladas sobre una matriz de electrodos recibe la posición de la pelota como pulsos eléctricos y mueve la paleta con su propia actividad. Cuando la paleta pega, el plato recibe un estímulo ordenado; cuando falla, ruido. Con el tiempo, la red se reorganiza para que le toque más orden.</p>
+  </header>
+
+  <section class="controls" aria-label="Controles">
+    <div class="seg" id="conds" role="group" aria-label="Condición del experimento"></div>
+    <div class="seg" id="speeds" role="group" aria-label="Velocidad">
+      <button type="button" data-speed="1" aria-pressed="true">1×</button>
+      <button type="button" data-speed="4" aria-pressed="false">4×</button>
+      <button type="button" data-speed="16" aria-pressed="false">16×</button>
+    </div>
+    <button type="button" class="btn" id="play">Pausar</button>
+    <span class="spacer"></span>
+    <button type="button" class="btn" id="ff">Adelantar 5 min</button>
+    <button type="button" class="btn" id="reset">Cultivo nuevo</button>
+    <p class="cond-note" id="condNote"></p>
+  </section>
+
+  <section class="stage">
+    <figure class="panel">
+      <div class="panel-head">
+        <h2>El juego</h2>
+        <span class="chip" id="phase" data-phase="juego">jugando</span>
+      </div>
+      <canvas id="pong" aria-label="Pong: la paleta a la izquierda la mueve el cultivo"></canvas>
+      <figcaption>La paleta (izquierda) se mueve según qué regiones motoras disparan más. La pelota rebota en las paredes de arriba, abajo y derecha.</figcaption>
+    </figure>
+    <figure class="panel">
+      <div class="panel-head">
+        <h2>El plato</h2>
+        <span class="label">vista de la matriz de electrodos</span>
+      </div>
+      <canvas id="mea" aria-label="Matriz de electrodos con las neuronas encendiéndose al disparar"></canvas>
+      <div class="legend">
+        <span><i style="--c: var(--scope-stim)"></i>electrodo estimulando</span>
+        <span><i style="--c: var(--scope-glow)"></i>neurona disparando</span>
+      </div>
+      <figcaption>Columna central: 8 electrodos sensoriales. Esquinas: 4 regiones motoras, dos mueven la paleta hacia arriba (↑) y dos hacia abajo (↓).</figcaption>
+    </figure>
+  </section>
+
+  <section class="stats" aria-label="Mediciones">
+    <div class="stat"><span class="label">Tiempo en el plato</span><b id="sTime">0:00</b><small>minutos de simulación</small></div>
+    <div class="stat"><span class="label">Golpes por rally</span><b id="sHits">–</b><small>promedio, últimos 5 min</small></div>
+    <div class="stat"><span class="label">Aces</span><b id="sAces">–</b><small>rallies sin ningún golpe</small></div>
+    <div class="stat"><span class="label">Rally actual</span><b id="sRally">0</b><small id="sRecord">récord 0</small></div>
+    <div class="stat"><span class="label">Electrodos que aprendieron</span><b id="sLearned">0/8</b><small>empujan hacia el lado correcto</small></div>
+  </section>
+
+  <section class="grid2">
+    <figure class="panel">
+      <div class="panel-head"><h3>Actividad, últimos 2 segundos</h3><span class="label">ráster</span></div>
+      <canvas id="raster" aria-label="Ráster de disparos"></canvas>
+      <div class="legend">
+        <span><i style="--c: var(--muted)"></i>sensoriales (8 grupos)</span>
+        <span><i style="--c: var(--up)"></i>motoras ↑</span>
+        <span><i style="--c: var(--down)"></i>motoras ↓</span>
+      </div>
+    </figure>
+    <figure class="panel">
+      <div class="panel-head"><h3>Qué aprendió cada electrodo</h3><span class="label">conexiones</span></div>
+      <div class="pref-axis"><span></span><div><span>empuja ↓</span><span>empuja ↑</span></div><span></span></div>
+      <div class="prefs" id="prefs"></div>
+      <figcaption>Cada fila es un electrodo sensorial; dice dónde está la pelota respecto de la paleta. Si la pelota está arriba, lo correcto es empujar hacia arriba. ✓ cuando la conexión ya apunta bien.</figcaption>
+    </figure>
+  </section>
+
+  <figure class="panel">
+    <div class="panel-head"><h3>Curva de aprendizaje de este cultivo</h3><span class="label">golpes por rally, por minuto</span></div>
+    <div class="chart-wrap"><canvas id="curve" aria-label="Golpes por rally por minuto"></canvas><div class="tip" id="tip" hidden></div></div>
+    <div class="legend" id="curveLegend"></div>
+  </figure>
+
+  <section class="panel exp">
+    <div class="exp-head">
+      <div style="display:grid;gap:4px;min-width:0">
+        <h2>El experimento completo</h2>
+        <p class="lede" style="font-size:0.92rem">Como en el paper: cultivos nuevos en cada condición, 20 minutos de juego, y se comparan los primeros 5 minutos contra los 15 siguientes.</p>
+      </div>
+      <button type="button" class="btn primary" id="runExp">Correr experimento</button>
+    </div>
+    <div class="progress" aria-hidden="true"><div id="expBar"></div></div>
+    <p class="label" id="expStatus">3 cultivos por condición · tarda alrededor de un minuto</p>
+    <div class="table-scroll">
+      <table class="res">
+        <thead><tr><th>Condición</th><th>Golpes por rally</th><th>Aces</th><th>Resultado</th></tr></thead>
+        <tbody id="expBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="notes">
+    <div class="note">
+      <h3>Qué pasa en el plato</h3>
+      <p><strong>Entrada.</strong> Uno de los 8 electrodos sensoriales pulsa según dónde está la pelota respecto de la paleta (código de lugar). Pulsa más rápido cuanto más cerca está, de 4 a 40 Hz (código de frecuencia).</p>
+      <p><strong>Salida.</strong> Las regiones motoras 1 y 4 empujan la paleta hacia arriba; la 2 y la 3, hacia abajo.</p>
+      <p><strong>Retroalimentación.</strong> Golpe: los 8 electrodos a 100 Hz durante 100 ms, siempre igual. Fallo: electrodos al azar a 5 Hz durante 4 s.</p>
+    </div>
+    <div class="note">
+      <h3>Por qué aprende</h3>
+      <p>La hipótesis del paper es el <strong>principio de energía libre</strong>: un sistema que se organiza para reducir la sorpresa prefiere las acciones que vuelven predecible lo que siente. Pegarle a la pelota es la única forma que tiene el cultivo de evitar el ruido.</p>
+      <p>En este modelo, cada par de disparos sensorial→motor deja una marca que dura un segundo. El estímulo predecible consolida esas marcas; el impredecible las revierte y sacude las conexiones. Cuanto más inesperado el resultado, más fuerte el cambio.</p>
+    </div>
+    <div class="note">
+      <h3>Qué es simplificación</h3>
+      <ul>
+        <li>El original tenía ~800.000 neuronas sobre 26.400 electrodos; acá hay 176 neuronas de Izhikevich.</li>
+        <li>Acá los electrodos codifican la posición de la pelota <em>respecto de la paleta</em>; en el original codificaban la posición absoluta.</li>
+        <li>La regla de aprendizaje es una hipótesis del modelo, no un mecanismo medido. Sus parámetros están ajustados para que el aprendizaje se vea en minutos.</li>
+        <li>En el paper, Silencio aprendió algo, menos que Estímulo. Acá casi no aprende: el modelo trata la pausa como una señal muy débil.</li>
+        <li>No todos los cultivos aprenden igual. Algunos aprenden al revés en un electrodo o se desordenan después; probá con «Cultivo nuevo».</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="sources">
+    <span class="label">Fuentes</span>
+    <span>Kagan, B. J. et al. (2022). In vitro neurons learn and exhibit sentience when embodied in a simulated game-world. <em>Neuron</em> 110(23). <a href="https://doi.org/10.1016/j.neuron.2022.09.001" target="_blank" rel="noopener">doi.org/10.1016/j.neuron.2022.09.001</a></span>
+    <span><a href="https://corticallabs.com/research" target="_blank" rel="noopener">Cortical Labs · investigación</a> · <a href="https://www.dongascience.com/en/news/60267" target="_blank" rel="noopener">Dong-A Science</a></span>
+  </section>
+</div>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  const CONDS = DishBrain.CONDITIONS;
+  const P = DishBrain.PARAMS;
+  const ORDER = ['estimulo', 'silencio', 'sinfeedback', 'reposo'];
+  const NOTES = {
+    estimulo: 'Estímulo: golpe → estímulo predecible; fallo → 4 s de estímulo impredecible.',
+    silencio: 'Silencio: golpe → nada; fallo → se cortan todos los estímulos durante 4 s.',
+    sinfeedback: 'Sin feedback: el juego sigue, pero el cultivo nunca se entera de si pegó o falló.',
+    reposo: 'Reposo: no entra información de la pelota. La paleta se mueve solo con la actividad espontánea.',
+  };
+  const ELEC_NAMES = ['muy arriba', 'arriba', 'algo arriba', 'apenas arriba', 'apenas abajo', 'algo abajo', 'abajo', 'muy abajo'];
+  const $ = (s) => document.querySelector(s);
+
+  // ---------- colores desde los tokens ----------
+  let C = {};
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    const g = (n) => cs.getPropertyValue(n).trim();
+    C = {
+      surface: g('--surface'), bg: g('--bg'), ink: g('--ink'), muted: g('--muted'), line: g('--line'),
+      accent: g('--accent'), up: g('--up'), down: g('--down'),
+      cond: { estimulo: g('--c-estimulo'), silencio: g('--c-silencio'), sinfeedback: g('--c-sinfeedback'), reposo: g('--c-reposo') },
+      scopeBg: g('--scope-bg'), well: g('--scope-well'), grid: g('--scope-grid'), cell: g('--scope-cell'),
+      glow: g('--scope-glow'), stim: g('--scope-stim'), slabel: g('--scope-label'),
+      mono: g('--f-mono'),
+    };
+  }
+  readColors();
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); } catch (e) {}
+  new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  function fit(canvas) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w, h };
+  }
+
+  // ---------- estado ----------
+  let cond = 'estimulo';
+  let sim, segments, lastSpike, raster, cellPos, record;
+  let running = true, speed = 1, ff = null, acc = 0, lastNow = performance.now();
+
+  function newCulture(seed) {
+    sim = new DishBrain({ seed: seed, condition: cond });
+    segments = [{ cond: cond, from: 0 }];
+    lastSpike = new Float64Array(sim.N).fill(-1e9);
+    raster = [];
+    record = 0;
+    layoutCells(seed);
+  }
+
+  function layoutCells(seed) {
+    let a = (seed * 9301 + 49297) >>> 0;
+    const r = () => { a = (a * 1664525 + 1013904223) >>> 0; return a / 4294967296; };
+    cellPos = [];
+    for (let i = 0; i < sim.NS; i++) {
+      const e = Math.floor(i / P.perElec);
+      const ey = elecY(e);
+      cellPos.push([0.5 + (r() - 0.5) * 0.13, ey + (r() - 0.5) * 0.05]);
+    }
+    for (let j = 0; j < sim.NM; j++) {
+      const c = regionCenter(sim.region[j]);
+      const ang = r() * Math.PI * 2, rad = Math.sqrt(r()) * 0.105;
+      cellPos.push([c[0] + Math.cos(ang) * rad, c[1] + Math.sin(ang) * rad]);
+    }
+  }
+  const elecY = (e) => 0.24 + e * (0.52 / 7);
+  const regionCenter = (k) => [[0.24, 0.27], [0.76, 0.27], [0.24, 0.73], [0.76, 0.73]][k];
+
+  // ---------- controles ----------
+  const condBox = $('#conds');
+  for (const k of ORDER) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.dataset.cond = k;
+    b.style.setProperty('--c', 'var(--c-' + k + ')');
+    b.innerHTML = '<span class="dot"></span>' + CONDS[k].label;
+    b.setAttribute('aria-pressed', k === cond ? 'true' : 'false');
+    b.addEventListener('click', () => setCond(k));
+    condBox.appendChild(b);
+  }
+  function setCond(k) {
+    cond = k;
+    sim.setCondition(k);
+    if (segments[segments.length - 1].cond !== k) segments.push({ cond: k, from: sim.t });
+    condBox.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.cond === k ? 'true' : 'false'));
+    $('#condNote').textContent = NOTES[k];
+    drawCurve();
+  }
+  $('#speeds').addEventListener('click', (ev) => {
+    const b = ev.target.closest('button'); if (!b) return;
+    speed = +b.dataset.speed;
+    $('#speeds').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+  });
+  $('#play').addEventListener('click', () => {
+    running = !running;
+    $('#play').textContent = running ? 'Pausar' : 'Seguir';
+  });
+  $('#ff').addEventListener('click', () => {
+    if (ff) return;
+    ff = { left: 300000 };
+    $('#ff').disabled = true;
+  });
+  $('#reset').addEventListener('click', () => {
+    newCulture(1 + Math.floor(Math.random() * 1e6));
+    drawCurve(); updateStats(true);
+  });
+
+  // ---------- bucle ----------
+  function drain() {
+    const log = sim.spikeLog;
+    for (let k = 0; k < log.length; k += 2) {
+      lastSpike[log[k + 1]] = log[k];
+      raster.push(log[k], log[k + 1]);
+    }
+    sim.spikeLog = [];
+    const cut = sim.t - 2000;
+    let s = 0;
+    while (s < raster.length && raster[s] < cut) s += 2;
+    if (s) raster.splice(0, s);
+  }
+
+  let lastStats = 0;
+  function frame(now) {
+    const dt = Math.min(100, now - lastNow); lastNow = now;
+    if (ff) {
+      const t0 = performance.now();
+      while (ff.left > 0 && performance.now() - t0 < 28) { const n = Math.min(500, ff.left); sim.run(n); ff.left -= n; }
+      $('#ff').textContent = 'Adelantando… ' + Math.round(100 - ff.left / 3000) + '%';
+      sim.spikeLog = [];
+      if (ff.left <= 0) { ff = null; raster = []; $('#ff').disabled = false; $('#ff').textContent = 'Adelantar 5 min'; drawCurve(); }
+    } else if (running) {
+      acc += dt * speed;
+      const n = Math.floor(acc); acc -= n;
+      for (let k = 0; k < n; k++) sim.step();
+      drain();
+    }
+    drawPong(); drawMea(); drawRaster();
+    if (now - lastStats > 250) { lastStats = now; updateStats(); }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- dibujo: Pong ----------
+  const PHASE_TEXT = { juego: 'jugando', predecible: 'estímulo predecible', impredecible: 'estímulo impredecible · 4 s', silencio: 'silencio · 4 s' };
+  function drawPong() {
+    const { ctx, w, h } = fit($('#pong'));
+    const ph = sim.phase;
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, w, h);
+    if (ph === 'predecible') { ctx.fillStyle = C.accent; ctx.globalAlpha = 0.18; ctx.fillRect(0, 0, w, h); ctx.globalAlpha = 1; }
+    if (ph === 'impredecible') {
+      ctx.fillStyle = C.muted;
+      for (let k = 0; k < 260; k++) { ctx.globalAlpha = Math.random() * 0.5; ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
+      ctx.globalAlpha = 1;
+    }
+    // red central
+    ctx.strokeStyle = C.line; ctx.lineWidth = 2; ctx.setLineDash([6, 8]);
+    ctx.beginPath(); ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h); ctx.stroke(); ctx.setLineDash([]);
+    // paleta
+    const pad = 10, ph2 = P.paddleHalf * h;
+    ctx.fillStyle = C.ink;
+    roundRect(ctx, 4, sim.paddle * h - ph2, pad, ph2 * 2, 3); ctx.fill();
+    // pelota
+    if (ph === 'juego' || ph === 'predecible') {
+      const bx = 4 + pad + sim.ball.x * (w - pad - 12), by = sim.ball.y * h;
+      ctx.fillStyle = C.accent;
+      ctx.beginPath(); ctx.arc(bx, by, 6, 0, Math.PI * 2); ctx.fill();
+    }
+    // marcador
+    ctx.fillStyle = C.muted; ctx.font = '600 13px ' + C.mono; ctx.textAlign = 'right';
+    ctx.fillText('rally ' + sim.rally, w - 12, 22);
+    const chip = $('#phase');
+    if (chip.dataset.phase !== ph) { chip.dataset.phase = ph; chip.textContent = PHASE_TEXT[ph]; }
+  }
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+
+  // ---------- dibujo: el plato ----------
+  function drawMea() {
+    const { ctx, w, h } = fit($('#mea'));
+    const s = Math.min(w, h);
+    ctx.fillStyle = C.scopeBg; ctx.fillRect(0, 0, w, h);
+    ctx.save(); ctx.translate((w - s) / 2, (h - s) / 2);
+    ctx.fillStyle = C.well;
+    ctx.beginPath(); ctx.arc(s / 2, s / 2, s * 0.48, 0, Math.PI * 2); ctx.fill();
+    // grilla de electrodos
+    ctx.fillStyle = C.grid;
+    const n = 22;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const x = (i + 0.5) / n, y = (j + 0.5) / n;
+      if ((x - 0.5) ** 2 + (y - 0.5) ** 2 > 0.43 ** 2) continue;
+      ctx.fillRect(x * s - 1.5, y * s - 1.5, 3, 3);
+    }
+    // regiones motoras
+    ctx.font = '600 ' + Math.max(10, s * 0.03) + 'px ' + C.mono; ctx.textAlign = 'center';
+    for (let k = 0; k < 4; k++) {
+      const c = regionCenter(k), up = k === 0 || k === 3;
+      const act = Math.min(1, sim.regionActivity[k] / 6);
+      ctx.strokeStyle = C.slabel; ctx.globalAlpha = 0.25 + act * 0.6; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+      ctx.beginPath(); ctx.arc(c[0] * s, c[1] * s, s * 0.13, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+      ctx.globalAlpha = 1; ctx.fillStyle = C.slabel;
+      const ly = c[1] < 0.5 ? c[1] - 0.155 : c[1] + 0.175;
+      ctx.fillText('M' + (k + 1) + (up ? ' ↑' : ' ↓'), c[0] * s, ly * s);
+    }
+    // electrodos sensoriales
+    for (let e = 0; e < P.nElec; e++) {
+      const y = elecY(e) * s, since = sim.t - sim.lastStim[e];
+      const lit = since < 40 ? 1 - since / 40 : 0;
+      ctx.fillStyle = lit ? C.stim : C.grid; ctx.globalAlpha = lit ? 0.35 + lit * 0.65 : 1;
+      ctx.fillRect(s * 0.5 - s * 0.075, y - s * 0.016, s * 0.15, s * 0.032);
+      ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = C.slabel; ctx.textAlign = 'center';
+    ctx.fillText('sensorial', s * 0.5, s * 0.17);
+    // neuronas
+    const R = Math.max(1.8, s * 0.006);
+    for (let i = 0; i < sim.N; i++) {
+      const p = cellPos[i], since = sim.t - lastSpike[i];
+      const g = since < 80 ? 1 - since / 80 : 0;
+      ctx.fillStyle = g ? C.glow : C.cell; ctx.globalAlpha = g ? 0.4 + 0.6 * g : 1;
+      ctx.beginPath(); ctx.arc(p[0] * s, p[1] * s, R + g * R * 1.2, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    for (let e = 0; e < P.nElec; e++) sim.elecActivity[e] *= 0.8;
+    for (let k = 0; k < 4; k++) sim.regionActivity[k] *= 0.85;
+  }
+
+  // ---------- dibujo: ráster ----------
+  function drawRaster() {
+    const { ctx, w, h } = fit($('#raster'));
+    ctx.fillStyle = C.surface; ctx.fillRect(0, 0, w, h);
+    const left = 4, top = 4, H = h - 22, W = w - left - 4, N = sim.N, t1 = sim.t, t0 = t1 - 2000;
+    const rowH = H / N;
+    ctx.strokeStyle = C.line; ctx.lineWidth = 1;
+    for (let e = 1; e < P.nElec; e++) { const y = top + e * P.perElec * rowH; ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(left + W, y); ctx.stroke(); }
+    ctx.strokeStyle = C.muted;
+    const ym = top + sim.NS * rowH; ctx.beginPath(); ctx.moveTo(left, ym); ctx.lineTo(left + W, ym); ctx.stroke();
+    for (let k = 0; k < raster.length; k += 2) {
+      const t = raster[k], i = raster[k + 1];
+      const x = left + ((t - t0) / 2000) * W, y = top + i * rowH;
+      ctx.fillStyle = i < sim.NS ? C.muted : (sim.isUp[i - sim.NS] ? C.up : C.down);
+      ctx.fillRect(x, y, 1.6, Math.max(1, rowH));
+    }
+    ctx.fillStyle = C.muted; ctx.font = '11px ' + C.mono; ctx.textAlign = 'left';
+    ctx.fillText('−2 s', left, h - 5); ctx.textAlign = 'right'; ctx.fillText('ahora', left + W, h - 5);
+  }
+
+  // ---------- preferencias por electrodo ----------
+  const prefBox = $('#prefs');
+  const prefRows = ELEC_NAMES.map((name) => {
+    const row = document.createElement('div'); row.className = 'pref-row';
+    row.innerHTML = '<span class="name">pelota ' + name + '</span><div class="track"><div class="bar"></div></div><span class="ok"></span>';
+    prefBox.appendChild(row);
+    return { bar: row.querySelector('.bar'), ok: row.querySelector('.ok') };
+  });
+
+  function rallyStats(from, to) {
+    let n = 0, h = 0, a = 0;
+    for (const r of sim.rallies) { if (r.t < from || r.t >= to) continue; n++; h += r.hits; if (!r.hits) a++; }
+    return { n, h, a };
+  }
+
+  function updateStats(force) {
+    const t = sim.t;
+    const mm = Math.floor(t / 60000), ss = Math.floor((t % 60000) / 1000);
+    $('#sTime').textContent = mm + ':' + String(ss).padStart(2, '0');
+    const st = rallyStats(t - 300000, t + 1);
+    $('#sHits').textContent = st.n ? (st.h / st.n).toFixed(2) : '–';
+    $('#sAces').textContent = st.n ? Math.round((100 * st.a) / st.n) + '%' : '–';
+    $('#sRally').textContent = sim.rally;
+    record = Math.max(record, sim.rally);
+    for (const r of sim.rallies) if (r.hits > record) record = r.hits;
+    $('#sRecord').textContent = 'récord ' + record;
+    const pref = sim.preference();
+    let learned = 0;
+    pref.forEach((p, e) => {
+      const want = e < 4 ? 1 : -1, ok = p * want > 0.3;
+      if (ok) learned++;
+      const row = prefRows[e], v = Math.max(-1, Math.min(1, p));
+      row.bar.style.left = (v >= 0 ? 50 : 50 + v * 50) + '%';
+      row.bar.style.width = Math.abs(v) * 50 + '%';
+      row.bar.style.background = v >= 0 ? 'var(--up)' : 'var(--down)';
+      row.ok.textContent = ok ? '✓' : '';
+    });
+    $('#sLearned').textContent = learned + '/8';
+    const mins = Math.floor(t / 60000);
+    if (force || mins !== updateStats.lastMin || sim.rallies.length !== updateStats.lastN) {
+      updateStats.lastMin = mins; updateStats.lastN = sim.rallies.length; drawCurve();
+    }
+  }
+
+  // ---------- curva de aprendizaje ----------
+  let curvePts = [];
+  function drawCurve() {
+    const { ctx, w, h } = fit($('#curve'));
+    ctx.fillStyle = C.surface; ctx.fillRect(0, 0, w, h);
+    const mins = Math.max(10, Math.ceil(sim.t / 60000));
+    const full = Math.floor(sim.t / 60000);
+    curvePts = [];
+    let ymax = 2;
+    for (let m = 0; m < full; m++) {
+      const s = rallyStats(m * 60000, (m + 1) * 60000);
+      if (!s.n) continue;
+      const v = s.h / s.n;
+      let c = segments[0].cond;
+      for (const sg of segments) if (sg.from <= m * 60000 + 30000) c = sg.cond;
+      curvePts.push({ m, v, n: s.n, cond: c });
+      ymax = Math.max(ymax, v);
+    }
+    ymax = Math.ceil(ymax);
+    const L = 34, R = 28, T = 10, B = 24, W = w - L - R, H = h - T - B;
+    const X = (m) => L + (m / mins) * W, Y = (v) => T + H - (v / ymax) * H;
+    // franjas por condición
+    for (let k = 0; k < segments.length; k++) {
+      const a = segments[k].from / 60000, b = k + 1 < segments.length ? segments[k + 1].from / 60000 : Math.max(sim.t / 60000, a);
+      ctx.fillStyle = C.cond[segments[k].cond]; ctx.globalAlpha = 0.09;
+      ctx.fillRect(X(a), T, Math.max(1, X(b) - X(a)), H); ctx.globalAlpha = 1;
+    }
+    // grilla y ejes
+    ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.fillStyle = C.muted; ctx.font = '11px ' + C.mono;
+    const step = ymax <= 4 ? 1 : ymax <= 10 ? 2 : 5;
+    ctx.textAlign = 'right';
+    for (let v = 0; v <= ymax; v += step) {
+      const y = Y(v); ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + W, y); ctx.stroke();
+      ctx.fillText(String(v), L - 6, y + 4);
+    }
+    ctx.textAlign = 'center';
+    const xs = mins <= 12 ? 2 : mins <= 30 ? 5 : 10;
+    for (let m = 0; m <= mins; m += xs) ctx.fillText(m + ' min', X(m), h - 6);
+    if (!curvePts.length) {
+      ctx.fillStyle = C.muted; ctx.textAlign = 'center'; ctx.font = '13px ' + C.mono;
+      ctx.fillText('el primer punto aparece al terminar el minuto 1', L + W / 2, T + H / 2);
+    } else {
+      ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+      ctx.beginPath();
+      curvePts.forEach((p, k) => { const x = X(p.m + 0.5), y = Y(p.v); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      ctx.stroke();
+      for (const p of curvePts) {
+        ctx.fillStyle = C.surface; ctx.beginPath(); ctx.arc(X(p.m + 0.5), Y(p.v), 6, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = C.cond[p.cond]; ctx.beginPath(); ctx.arc(X(p.m + 0.5), Y(p.v), 4, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    drawCurve.map = { X, Y, L, W };
+    const used = [...new Set(segments.map((s) => s.cond))];
+    $('#curveLegend').innerHTML = used.map((k) => '<span><i style="--c: var(--c-' + k + ')"></i>' + CONDS[k].label + '</span>').join('');
+  }
+  const curveEl = $('#curve'), tip = $('#tip');
+  curveEl.addEventListener('pointermove', (ev) => {
+    const m = drawCurve.map; if (!m || !curvePts.length) { tip.hidden = true; return; }
+    const rect = curveEl.getBoundingClientRect(), x = ev.clientX - rect.left;
+    let best = null, bd = 1e9;
+    for (const p of curvePts) { const d = Math.abs(m.X(p.m + 0.5) - x); if (d < bd) { bd = d; best = p; } }
+    if (!best || bd > 40) { tip.hidden = true; return; }
+    tip.hidden = false;
+    tip.style.left = m.X(best.m + 0.5) + 'px'; tip.style.top = m.Y(best.v) + 'px';
+    tip.textContent = 'min ' + (best.m + 1) + ' · ' + best.v.toFixed(2) + ' golpes · ' + best.n + ' rallies · ' + CONDS[best.cond].label;
+  });
+  curveEl.addEventListener('pointerleave', () => { tip.hidden = true; });
+
+  // ---------- experimento completo ----------
+  const EXP = { seeds: [101, 202, 303], mins: 20 };
+  function renderExp(results) {
+    let maxH = 1;
+    for (const k of ORDER) if (results[k]) maxH = Math.max(maxH, results[k].early.hpr, results[k].late.hpr);
+    $('#expBody').innerHTML = ORDER.map((k) => {
+      const r = results[k];
+      const name = '<span class="cname" style="--c: var(--c-' + k + ')"><i></i>' + CONDS[k].label + '</span>';
+      if (!r) return '<tr><td>' + name + '</td><td colspan="3" class="label">pendiente</td></tr>';
+      const bar = (lbl, v, max, fmt, strong) =>
+        '<div class="hb"><span>' + lbl + '</span><div class="t"><div class="f" style="width:' + (100 * v / max).toFixed(1) + '%;background:' + (strong ? 'var(--c-' + k + ')' : 'var(--muted)') + ';opacity:' + (strong ? 1 : 0.45) + '"></div></div><span class="v">' + fmt(v) + '</span></div>';
+      const f2 = (v) => v.toFixed(2), pc = (v) => Math.round(v * 100) + '%';
+      const better = r.late.hpr > r.early.hpr * 1.3 && r.late.hpr - r.early.hpr > 0.2;
+      return '<tr><td>' + name + '</td>' +
+        '<td><div class="pair">' + bar('min 0–5', r.early.hpr, maxH, f2) + bar('min 5–20', r.late.hpr, maxH, f2, true) + '</div></td>' +
+        '<td><div class="pair">' + bar('min 0–5', r.early.aces, 1, pc) + bar('min 5–20', r.late.aces, 1, pc, true) + '</div></td>' +
+        '<td>' + (better ? '<span class="pill up">↑ aprendió ×' + (r.late.hpr / Math.max(0.01, r.early.hpr)).toFixed(1) + '</span>' : '<span class="pill flat">sin cambio claro</span>') + '</td></tr>';
+    }).join('');
+  }
+  function pool(cultures, a, b) {
+    let n = 0, h = 0, ac = 0;
+    for (const c of cultures) for (let m = a; m < b; m++) { n += c[m].n; h += c[m].hits; ac += c[m].aces; }
+    return { hpr: n ? h / n : 0, aces: n ? ac / n : 0 };
+  }
+  renderExp({});
+
+  $('#runExp').addEventListener('click', () => {
+    const btn = $('#runExp'); btn.disabled = true;
+    const total = ORDER.length * EXP.seeds.length * EXP.mins;
+    let done = 0;
+    const results = {};
+    renderExp(results);
+    const progress = () => {
+      done++;
+      $('#expBar').style.width = (100 * done / total).toFixed(1) + '%';
+      $('#expStatus').textContent = 'simulando… ' + Math.round(100 * done / total) + '%';
+    };
+    const finish = (k, cultures) => {
+      results[k] = { early: pool(cultures, 0, 5), late: pool(cultures, 5, EXP.mins) };
+      renderExp(results);
+      if (Object.keys(results).length === ORDER.length) {
+        btn.disabled = false; btn.textContent = 'Correr de nuevo';
+        $('#expStatus').textContent = 'listo · ' + EXP.seeds.length + ' cultivos por condición, ' + EXP.mins + ' min cada uno';
+      }
+    };
+    let workers = null;
+    try {
+      workers = ORDER.map((k) => {
+        const wk = new Worker('worker.js');
+        wk.onmessage = (ev) => {
+          if (ev.data.type === 'progress') progress();
+          else { finish(k, ev.data.cultures); wk.terminate(); }
+        };
+        wk.onerror = (e) => { e.preventDefault(); wk.terminate(); fallback(k); };
+        wk.postMessage({ cond: k, seeds: EXP.seeds, mins: EXP.mins });
+        return wk;
+      });
+    } catch (e) {
+      ORDER.forEach(fallback);
+    }
+    // sin workers (por ejemplo, abriendo el archivo directo del disco): se simula en pedazos
+    function fallback(k) {
+      const cultures = [];
+      let si = 0, d = null, m = 0, perMin = null;
+      (function chunk() {
+        const t0 = performance.now();
+        while (performance.now() - t0 < 12) {
+          if (!d) { d = new DishBrain({ seed: EXP.seeds[si], condition: k }); m = 0; perMin = []; }
+          d.run(60000);
+          let n = 0, hits = 0, aces = 0;
+          for (const r of d.rallies) if (r.t >= m * 60000 && r.t < (m + 1) * 60000) { n++; hits += r.hits; if (!r.hits) aces++; }
+          perMin.push({ n, hits, aces }); m++; progress();
+          if (m === EXP.mins) { cultures.push(perMin); d = null; si++; if (si === EXP.seeds.length) { finish(k, cultures); return; } }
+        }
+        setTimeout(chunk, 0);
+      })();
+    }
+  });
+
+  // ---------- arranque ----------
+  newCulture(101);
+  setCond(cond);
+  updateStats(true);
+  requestAnimationFrame(frame);
+})();
+</script>

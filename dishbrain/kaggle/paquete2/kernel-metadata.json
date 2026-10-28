@@ -1,0 +1,10 @@
+{
+ "id": "fabri9/pongbrain-entrenamiento-2",
+ "title": "pongbrain-entrenamiento-2",
+ "code_file": "entrenamiento.ipynb",
+ "language": "python",
+ "kernel_type": "notebook",
+ "is_private": true,
+ "enable_internet": true,
+ "enable_gpu": false
+}

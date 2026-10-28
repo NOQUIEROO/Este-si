@@ -1,0 +1,3 @@
+{
+  "redirects": [{ "source": "/", "destination": "/pongbrain/", "permanent": false }]
+}
